@@ -22,6 +22,9 @@ model User {
   wearEvents        WearEvent[]
   uploads           Upload[]
   styleProfile      StyleProfile?
+  capsuleWardrobes  CapsuleWardrobe[]
+  purchaseHistory   PurchaseHistory[]
+  emailConnection   EmailConnection?
 
   @@map("users")
 }
@@ -147,4 +150,79 @@ model StyleProfile {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("style_profiles")
+}
+
+model CapsuleWardrobe {
+  id        Int      @id @default(autoincrement())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String?  @map("user_id")
+
+  name              String
+  period            String   // "weekly" or "monthly"
+  itemIds           Int[]    @map("item_ids")
+  outfitPlan        Json     @map("outfit_plan") // Daily outfit schedule
+  versatilityScore  Int      @map("versatility_score")
+
+  startDate DateTime? @map("start_date")
+  endDate   DateTime? @map("end_date")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId], name: "capsule_wardrobes_user_idx")
+  @@index([period], name: "idx_capsule_period")
+  @@map("capsule_wardrobes")
+}
+
+model PurchaseHistory {
+  id          Int      @id @default(autoincrement())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String   @map("user_id")
+
+  // Purchase details
+  itemName        String   @map("item_name")
+  brand           String?
+  store           String
+  purchaseDate    DateTime @map("purchase_date")
+  price           Float?
+  orderNumber     String?  @unique @map("order_number")
+
+  // Extracted metadata (from AI)
+  itemType        String?  @map("item_type")
+  color           String?
+  pattern         String?
+  estimatedVibe   String?  @map("estimated_vibe")
+
+  // Email reference
+  emailId         String?  @map("email_id")
+  emailSubject    String?  @map("email_subject")
+
+  // Status
+  addedToWardrobe Boolean  @default(false) @map("added_to_wardrobe")
+  clothingItemId  Int?     @map("clothing_item_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId], name: "purchase_history_user_idx")
+  @@index([purchaseDate], name: "idx_purchase_date")
+  @@index([store], name: "idx_store")
+  @@map("purchase_history")
+}
+
+model EmailConnection {
+  id          Int      @id @default(autoincrement())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String   @unique @map("user_id")
+
+  provider    String   // "gmail"
+  accessToken String   @map("access_token")
+  refreshToken String? @map("refresh_token")
+  expiresAt   DateTime? @map("expires_at")
+
+  lastSyncedAt DateTime? @map("last_synced_at")
+  isActive     Boolean  @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("email_connections")
 }

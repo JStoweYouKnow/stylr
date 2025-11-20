@@ -39,6 +39,190 @@ const response = await fetch('/api/chat', {
 
 ---
 
+## 🛍️ Purchase Tracking
+
+### POST `/api/purchases/connect/gmail`
+**Description**: Initiate Gmail OAuth flow to connect email account
+
+**Body**:
+```json
+{
+  "userId": "user-123"
+}
+```
+
+**Response**:
+```json
+{
+  "authUrl": "https://accounts.google.com/o/oauth2/v2/auth?...",
+  "message": "Visit this URL to authorize Gmail access"
+}
+```
+
+**Example**:
+```javascript
+const response = await fetch('/api/purchases/connect/gmail', {
+  method: 'POST',
+  body: JSON.stringify({ userId: 'user-123' })
+});
+const { authUrl } = await response.json();
+window.location.href = authUrl; // Redirect user to Google OAuth
+```
+
+---
+
+### POST `/api/purchases/scan`
+**Description**: Scan Gmail for purchase receipts and extract clothing items
+
+**Body**:
+```json
+{
+  "userId": "user-123",
+  "daysBack": 30
+}
+```
+
+**Response**:
+```json
+{
+  "scanned": 45,
+  "found": 8,
+  "new": 5,
+  "duplicates": 3,
+  "purchases": [
+    {
+      "id": 1,
+      "itemName": "Slim Fit Chinos",
+      "store": "J.Crew",
+      "purchaseDate": "2025-11-15T00:00:00.000Z",
+      "price": 89.50,
+      "itemType": "pants",
+      "color": "navy",
+      "addedToWardrobe": false
+    }
+  ],
+  "message": "Scanned 45 emails, found 8 purchases, added 5 new items"
+}
+```
+
+---
+
+### GET `/api/purchases`
+**Description**: Get purchase history for a user
+
+**Query Parameters**:
+- `userId` (required): User ID
+- `limit` (optional): Number of purchases to return (default: 20)
+- `stats` (optional): Include spending statistics (true/false)
+
+**Response**:
+```json
+{
+  "purchases": [...],
+  "count": 12,
+  "stats": {
+    "totalSpent": 1250.00,
+    "averagePrice": 62.50,
+    "favoriteBrands": ["J.Crew", "Uniqlo"],
+    "topStores": ["Amazon", "Nordstrom"],
+    "recentTrend": "casual"
+  }
+}
+```
+
+---
+
+### POST `/api/purchases`
+**Description**: Manually add a purchase
+
+**Body**:
+```json
+{
+  "userId": "user-123",
+  "itemName": "Blue Denim Jacket",
+  "store": "Levi's",
+  "purchaseDate": "2025-11-15",
+  "price": 89.99,
+  "brand": "Levi's",
+  "itemType": "jacket",
+  "color": "blue"
+}
+```
+
+**Response**:
+```json
+{
+  "purchase": {...},
+  "message": "Purchase added successfully"
+}
+```
+
+---
+
+### DELETE `/api/purchases`
+**Description**: Delete a purchase
+
+**Query Parameters**:
+- `id` (required): Purchase ID
+
+**Response**:
+```json
+{
+  "message": "Purchase deleted successfully"
+}
+```
+
+---
+
+### POST `/api/recommendations/from-purchases`
+**Description**: Generate recommendations based on purchase history
+
+**Body**:
+```json
+{
+  "userId": "user-123"
+}
+```
+
+**Response**:
+```json
+{
+  "recommendations": [
+    {
+      "type": "wardrobe_gap",
+      "message": "Your new \"Navy Chinos\" needs matching pieces",
+      "basedOn": "Recent purchase from J.Crew",
+      "suggestedAction": "Add dress shirt or casual top or blazer to complete outfits",
+      "suggestions": ["dress shirt", "casual top", "blazer"]
+    },
+    {
+      "type": "duplicate_check",
+      "message": "You recently bought \"Blue T-Shirt\" but already own 2 similar shirt(s)",
+      "basedOn": "Purchase: Blue T-Shirt from Uniqlo",
+      "existingItems": [...],
+      "advice": "Great for variety!"
+    },
+    {
+      "type": "outfit_ready",
+      "message": "Create 3 outfits with your new \"Navy Blazer\"",
+      "matchingItems": [...],
+      "basedOn": "Purchase: Navy Blazer"
+    },
+    {
+      "type": "shopping_insight",
+      "message": "You've been buying mostly shirt items lately",
+      "suggestedAction": "Consider adding bottoms (pants or skirts) for a balanced wardrobe",
+      "advice": "You have 4 shirts from recent purchases"
+    }
+  ],
+  "purchaseCount": 8,
+  "wardrobeCount": 25,
+  "message": "Generated 4 recommendations based on your purchase history"
+}
+```
+
+---
+
 ## 👕 Clothing Management
 
 ### POST `/api/clothing/upload`
@@ -270,6 +454,130 @@ await fetch('/api/outfits/validate-colors', {
   method: 'POST',
   body: JSON.stringify({ colors: ['red', 'orange', 'pink'] })
 });
+```
+
+---
+
+## 📦 Capsule Wardrobes
+
+### POST `/api/capsule/weekly`
+**Description**: Generate a weekly capsule wardrobe (7 days, 12-15 items)
+
+**Body**:
+```json
+{
+  "userId": "optional-user-id",
+  "occasionMix": {
+    "casual": 3,
+    "work": 4
+  }
+}
+```
+
+**Response**:
+```json
+{
+  "capsule": {
+    "items": [ /* 12-15 clothing items */ ],
+    "outfits": [
+      {
+        "day": "Monday",
+        "occasion": "work",
+        "items": [ /* outfit items */ ],
+        "reasoning": "Professional outfit with neutral colors..."
+      },
+      // ... 6 more days
+    ],
+    "stats": {
+      "totalItems": 12,
+      "outfitsPerItem": { "1": 3, "2": 2, ... },
+      "versatilityScore": 85
+    }
+  },
+  "message": "Created weekly capsule with 12 items for 7 days"
+}
+```
+
+**Example**:
+```javascript
+await fetch('/api/capsule/weekly', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    userId: 'user-123',
+    occasionMix: { casual: 5, work: 2 }
+  })
+});
+```
+
+---
+
+### POST `/api/capsule/monthly`
+**Description**: Generate a monthly capsule wardrobe (30 days, 20-30 items)
+
+**Body**:
+```json
+{
+  "userId": "optional-user-id",
+  "occasionMix": {
+    "casual": 12,
+    "work": 16,
+    "formal": 2
+  }
+}
+```
+
+**Response**: Same structure as weekly, but with 30 daily outfits
+
+**Example**:
+```javascript
+await fetch('/api/capsule/monthly', {
+  method: 'POST',
+  body: JSON.stringify({
+    userId: 'user-123'
+  })
+});
+```
+
+---
+
+### GET `/api/capsule`
+**Description**: Get user's saved capsule wardrobes
+
+**Query Parameters**:
+- `userId` (optional) - User ID
+- `period` (optional) - Filter by "weekly" or "monthly"
+
+**Response**:
+```json
+{
+  "capsules": [
+    {
+      "id": 1,
+      "name": "Weekly Capsule - Week of 11/20/2025",
+      "period": "weekly",
+      "itemIds": [1, 5, 8, ...],
+      "items": [ /* full clothing item objects */ ],
+      "outfitPlan": [ /* daily outfits */ ],
+      "versatilityScore": 85,
+      "createdAt": "2025-11-20T..."
+    }
+  ],
+  "count": 3
+}
+```
+
+---
+
+### DELETE `/api/capsule`
+**Description**: Delete a saved capsule wardrobe
+
+**Query Parameters**:
+- `id` (required) - Capsule ID
+
+**Example**:
+```bash
+curl -X DELETE "http://localhost:3000/api/capsule?id=1"
 ```
 
 ---

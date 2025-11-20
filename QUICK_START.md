@@ -2,7 +2,14 @@
 
 ## 🎉 What's New (Just Implemented)
 
-You now have **6 powerful new features** running on **100% free AI models**!
+You now have **7 powerful new features** running on **100% free AI models**!
+
+### Latest Addition: Purchase History Tracking 🛍️
+- Automatically scan Gmail for purchase receipts
+- AI-powered receipt parsing with Gemini
+- Get recommendations based on shopping patterns
+- Identify wardrobe gaps and duplicate purchases
+- **100% FREE** - Uses Gmail API (1 billion quota/day)
 
 ---
 
@@ -237,7 +244,209 @@ curl -X POST http://localhost:3000/api/outfits/validate-colors \
 
 ---
 
-## ✅ Feature 7: AI Style Chat Assistant
+## ✅ Feature 7: Purchase History Tracking 🆕
+
+**Overview**: Automatically track purchases from your email and get smart wardrobe recommendations.
+
+### Step 1: Connect Gmail Account
+
+**API Endpoint**: `POST /api/purchases/connect/gmail`
+
+```javascript
+// Initiate OAuth flow
+const response = await fetch('/api/purchases/connect/gmail', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ userId: 'user-123' })
+});
+
+const { authUrl } = await response.json();
+
+// Redirect user to Google OAuth
+window.location.href = authUrl;
+
+// After user authorizes, they'll be redirected back to:
+// /?gmail_connected=true
+```
+
+**Environment Variables** (add to `.env`):
+```bash
+GOOGLE_CLIENT_ID="your_client_id.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET="your_client_secret"
+GOOGLE_REDIRECT_URI="http://localhost:3000/api/purchases/connect/gmail/callback"
+```
+
+**Setup Google OAuth**:
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Enable Gmail API
+3. Create OAuth 2.0 credentials
+4. Add authorized redirect URI: `http://localhost:3000/api/purchases/connect/gmail/callback`
+
+---
+
+### Step 2: Scan for Purchases
+
+**API Endpoint**: `POST /api/purchases/scan`
+
+```javascript
+// Scan last 30 days of emails
+const response = await fetch('/api/purchases/scan', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    userId: 'user-123',
+    daysBack: 30
+  })
+});
+
+const data = await response.json();
+console.log(data);
+/*
+{
+  scanned: 45,        // Emails scanned
+  found: 8,           // Purchases found
+  new: 5,             // New items added
+  duplicates: 3,      // Already tracked
+  purchases: [
+    {
+      id: 1,
+      itemName: "Slim Fit Chinos",
+      store: "J.Crew",
+      purchaseDate: "2025-11-15T00:00:00.000Z",
+      price: 89.50,
+      itemType: "pants",
+      color: "navy",
+      brand: "J.Crew",
+      addedToWardrobe: false
+    }
+  ],
+  message: "Scanned 45 emails, found 8 purchases, added 5 new items"
+}
+*/
+```
+
+**What gets scanned**:
+- Order confirmations from 100+ retailers (Amazon, Nordstrom, Zara, H&M, ASOS, Uniqlo, etc.)
+- Shipment notifications with order details
+- Emails with keywords: "order confirmation", "receipt", "tracking"
+
+---
+
+### Step 3: Get Purchase-Based Recommendations
+
+**API Endpoint**: `POST /api/recommendations/from-purchases`
+
+```javascript
+const response = await fetch('/api/recommendations/from-purchases', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ userId: 'user-123' })
+});
+
+const data = await response.json();
+console.log(data.recommendations);
+/*
+[
+  {
+    type: "wardrobe_gap",
+    message: "Your new \"Navy Chinos\" needs matching pieces",
+    basedOn: "Recent purchase from J.Crew",
+    suggestedAction: "Add dress shirt or casual top or blazer to complete outfits",
+    suggestions: ["dress shirt", "casual top", "blazer"]
+  },
+  {
+    type: "duplicate_check",
+    message: "You recently bought \"Blue T-Shirt\" but already own 2 similar shirt(s)",
+    existingItems: [...],
+    advice: "Great for variety!"
+  },
+  {
+    type: "outfit_ready",
+    message: "Create 3 outfits with your new \"Navy Blazer\"",
+    matchingItems: [...]
+  },
+  {
+    type: "shopping_insight",
+    message: "You've been buying mostly shirt items lately",
+    suggestedAction: "Consider adding bottoms (pants or skirts) for a balanced wardrobe"
+  }
+]
+*/
+```
+
+**Recommendation Types**:
+- `wardrobe_gap`: Missing pieces to complete outfits with new purchases
+- `duplicate_check`: Similar items already in your wardrobe
+- `outfit_ready`: Existing items that match new purchases
+- `shopping_insight`: Spending patterns and shopping trends
+
+---
+
+### Step 4: View Purchase History
+
+**API Endpoint**: `GET /api/purchases`
+
+```javascript
+// Get purchases with spending statistics
+const response = await fetch('/api/purchases?userId=user-123&limit=20&stats=true');
+
+const data = await response.json();
+console.log(data);
+/*
+{
+  purchases: [...],
+  count: 12,
+  stats: {
+    totalSpent: 1250.00,
+    averagePrice: 62.50,
+    favoriteBrands: ["J.Crew", "Uniqlo"],
+    topStores: ["Amazon", "Nordstrom"],
+    recentTrend: "casual"
+  }
+}
+*/
+```
+
+---
+
+### Optional: Manual Purchase Entry
+
+**API Endpoint**: `POST /api/purchases`
+
+```javascript
+// Add purchase manually (no email scanning needed)
+const response = await fetch('/api/purchases', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    userId: 'user-123',
+    itemName: 'Blue Denim Jacket',
+    store: "Levi's",
+    purchaseDate: '2025-11-15',
+    price: 89.99,
+    brand: "Levi's",
+    itemType: 'jacket',
+    color: 'blue'
+  })
+});
+```
+
+---
+
+**Cost**: **100% FREE**
+- Gmail API: 1 billion quota units/day (FREE)
+- Gemini AI parsing: 15 requests/min (FREE)
+- No additional infrastructure needed
+
+**Privacy**:
+- ✅ OAuth 2.0 secure authorization
+- ✅ Only reads emails (no send/delete permissions)
+- ✅ User can revoke access anytime
+- ✅ Email content not stored (only purchase data)
+
+---
+
+## ✅ Feature 8: AI Style Chat Assistant
 
 **API Endpoint**: `POST /api/chat` (streaming)
 

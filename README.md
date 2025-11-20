@@ -25,6 +25,8 @@ A Next.js application that uses free AI vision to analyze clothing items and hel
 ### 🎨 Outfit Features
 - **Outfit of the Day** - Daily random outfit suggestions from your closet
 - **Multi-Outfit Generator** - Generate 3+ outfits at once, ranked by style score
+- **Capsule Wardrobes** - Weekly (12-15 items) or Monthly (20-30 items) capsule planning
+- **Versatility Scoring** - See how well your capsule items work together
 - **Virtual Outfit Board** - Drag & drop wardrobe builder with undo/redo
 - **Outfit Export** - Shareable outfit cards with watermark
 - **Weather Integration** - Outfit suggestions based on temperature & precipitation
@@ -160,6 +162,12 @@ stylr/
 - `POST /api/outfits/validate-colors` - Check color harmony
 - `GET /api/outfits` - List user saved outfits
 - `POST /api/outfits` - Save custom outfit combinations
+
+### Capsule Wardrobes
+- `POST /api/capsule/weekly` - Generate 7-day capsule (12-15 items)
+- `POST /api/capsule/monthly` - Generate 30-day capsule (20-30 items)
+- `GET /api/capsule` - Get saved capsules
+- `DELETE /api/capsule` - Delete a capsule
 
 ### Weather
 - `POST /api/weather/outfit` - Weather-based outfit suggestions

@@ -1,0 +1,116 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+import { searchPurchaseEmails, getEmailContent } from "@/lib/gmail-integration";
+import { parseReceiptWithAI, normalizeClothingType, estimateVibe } from "@/lib/purchase-parser";
+
+export const dynamic = "force-dynamic";
+
+/**
+ * POST - Scan Gmail for purchase receipts
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { userId, daysBack = 30 } = body;
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: "User ID is required" },
+        { status: 400 }
+      );
+    }
+
+    // Search for purchase emails
+    const messages = await searchPurchaseEmails(userId, daysBack);
+
+    if (!messages || messages.length === 0) {
+      return NextResponse.json({
+        scanned: 0,
+        found: 0,
+        new: 0,
+        duplicates: 0,
+        purchases: [],
+        message: "No purchase emails found in the specified time range",
+      });
+    }
+
+    let foundCount = 0;
+    let newCount = 0;
+    let duplicateCount = 0;
+    const purchases = [];
+
+    // Process each email
+    for (const message of messages) {
+      if (!message.id) continue;
+
+      try {
+        // Get email content
+        const email = await getEmailContent(userId, message.id);
+
+        // Parse receipt with AI
+        const parsed = await parseReceiptWithAI(email.subject, email.body);
+
+        if (parsed.items.length === 0) {
+          continue; // No clothing items found
+        }
+
+        foundCount++;
+
+        // Check if we already have this order
+        if (parsed.orderNumber) {
+          const existing = await prisma.purchaseHistory.findUnique({
+            where: { orderNumber: parsed.orderNumber },
+          });
+
+          if (existing) {
+            duplicateCount++;
+            continue;
+          }
+        }
+
+        // Save each item from the order
+        for (const item of parsed.items) {
+          const purchase = await prisma.purchaseHistory.create({
+            data: {
+              userId,
+              itemName: item.name,
+              brand: item.brand || null,
+              store: parsed.store || "Unknown",
+              purchaseDate: parsed.purchaseDate
+                ? new Date(parsed.purchaseDate)
+                : new Date(),
+              price: item.price || parsed.total || null,
+              orderNumber: parsed.orderNumber || null,
+              itemType: item.type ? normalizeClothingType(item.type) : null,
+              color: item.color || null,
+              estimatedVibe: estimateVibe(item.name),
+              emailId: message.id,
+              emailSubject: email.subject,
+            },
+          });
+
+          purchases.push(purchase);
+          newCount++;
+        }
+      } catch (emailError) {
+        console.error(`Failed to process email ${message.id}:`, emailError);
+        // Continue processing other emails
+      }
+    }
+
+    return NextResponse.json({
+      scanned: messages.length,
+      found: foundCount,
+      new: newCount,
+      duplicates: duplicateCount,
+      purchases,
+      message: `Scanned ${messages.length} emails, found ${foundCount} purchases, added ${newCount} new items`,
+    });
+  } catch (error) {
+    console.error("Purchase scan error:", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to scan purchases" },
+      { status: 500 }
+    );
+  }
+}
