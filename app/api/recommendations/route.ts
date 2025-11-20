@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
+export const dynamic = "force-dynamic"; // Force dynamic rendering
+
 // GET /api/recommendations - Get outfit recommendations for user
 export async function GET(request: NextRequest) {
   try {
