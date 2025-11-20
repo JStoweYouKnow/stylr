@@ -1,20 +1,3 @@
-const withPWA = require('@ducanh2912/next-pwa').default({
-  dest: 'public',
-  cacheOnFrontEndNav: true,
-  aggressiveFrontEndNavCaching: true,
-  reloadOnOnline: true,
-  swcMinify: true,
-  disable: process.env.NODE_ENV === 'development',
-  workboxOptions: {
-    disableDevLogs: true,
-  },
-  // Exclude problematic files from PWA processing
-  buildExcludes: [
-    /app-build-manifest\.json$/,
-    /client-reference-manifest\.js$/,
-  ],
-});
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
@@ -31,5 +14,22 @@ const nextConfig = {
   },
 }
 
-module.exports = withPWA(nextConfig)
+// Temporarily disable PWA on Vercel to fix build errors
+// We can re-enable it later once the build issue is resolved
+if (process.env.VERCEL !== '1' && process.env.NODE_ENV === 'production') {
+  const withPWA = require('@ducanh2912/next-pwa').default({
+    dest: 'public',
+    cacheOnFrontEndNav: true,
+    aggressiveFrontEndNavCaching: true,
+    reloadOnOnline: true,
+    swcMinify: true,
+    disable: process.env.NODE_ENV === 'development',
+    workboxOptions: {
+      disableDevLogs: true,
+    },
+  });
+  module.exports = withPWA(nextConfig);
+} else {
+  module.exports = nextConfig;
+}
 
