@@ -53,8 +53,8 @@ export default function UploadForm() {
   }
 
   return (
-    <div className="p-6 border rounded-xl max-w-2xl">
-      <h3 className="text-xl font-semibold mb-4">Upload Clothing Item</h3>
+    <div className="p-4 sm:p-6 border rounded-xl max-w-2xl w-full">
+      <h3 className="text-lg sm:text-xl font-semibold mb-4">Upload Clothing Item</h3>
       
       <div className="space-y-4">
         <div>
@@ -67,12 +67,13 @@ export default function UploadForm() {
             accept="image/*"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             className="block w-full text-sm text-gray-500
-              file:mr-4 file:py-2 file:px-4
+              file:mr-4 file:py-2.5 file:px-4
               file:rounded-md file:border-0
               file:text-sm file:font-semibold
               file:bg-black file:text-white
               file:cursor-pointer
-              hover:file:bg-gray-800"
+              hover:file:bg-gray-800
+              touch-manipulation"
           />
         </div>
 
@@ -82,7 +83,7 @@ export default function UploadForm() {
             <img
               src={URL.createObjectURL(file)}
               alt="Preview"
-              className="max-w-xs rounded-lg border"
+              className="max-w-full sm:max-w-xs rounded-lg border"
             />
           </div>
         )}
@@ -100,7 +101,7 @@ export default function UploadForm() {
         )}
 
         <button
-          className="mt-4 px-6 py-2 bg-black text-white rounded-md hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          className="mt-4 w-full sm:w-auto px-6 py-3 bg-black text-white rounded-md hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base touch-manipulation"
           onClick={handleUpload}
           disabled={!file || uploading}
         >

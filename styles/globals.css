@@ -2,3 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  /* Mobile-friendly touch targets */
+  button,
+  a,
+  input[type="button"],
+  input[type="submit"] {
+    @apply touch-manipulation;
+  }
+
+  /* Prevent text size adjustment on iOS */
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Better scrolling on mobile */
+  body {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+

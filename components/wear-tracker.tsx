@@ -83,31 +83,31 @@ export default function WearTracker() {
   return (
     <div className="space-y-6">
       {/* Quick Log Section */}
-      <div className="bg-blue-50 border border-blue-200 p-6 rounded-lg">
-        <h3 className="text-lg font-semibold mb-4">Quick Log - What did you wear today?</h3>
+      <div className="bg-blue-50 border border-blue-200 p-4 sm:p-6 rounded-lg">
+        <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">Quick Log - What did you wear today?</h3>
         <p className="text-sm text-gray-600 mb-4">
           Select items from your closet to log them as worn today
         </p>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={() => {
               const allItemIds = suggestions.map((s) => s.id);
               setSelectedItems(allItemIds);
             }}
-            className="px-4 py-2 text-sm border rounded-md hover:bg-blue-100"
+            className="px-3 sm:px-4 py-2 text-sm border rounded-md hover:bg-blue-100 touch-manipulation"
           >
-            Select All Shown
+            Select All
           </button>
           <button
             onClick={() => setSelectedItems([])}
-            className="px-4 py-2 text-sm border rounded-md hover:bg-blue-100"
+            className="px-3 sm:px-4 py-2 text-sm border rounded-md hover:bg-blue-100 touch-manipulation"
           >
             Clear
           </button>
           <button
             onClick={() => logWear(selectedItems)}
             disabled={selectedItems.length === 0 || logging}
-            className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed ml-auto"
+            className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed ml-auto touch-manipulation"
           >
             {logging ? "Logging..." : `Log ${selectedItems.length} Item(s)`}
           </button>

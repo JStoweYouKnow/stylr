@@ -89,18 +89,21 @@ export function StyleChat({ userId }: StyleChatProps) {
       {!isOpen ? (
         <button
           onClick={() => setIsOpen(true)}
-          className="bg-black text-white px-6 py-3 rounded-full shadow-lg hover:bg-gray-800 transition-colors"
+          className="bg-black text-white px-4 sm:px-6 py-3 rounded-full shadow-lg hover:bg-gray-800 transition-colors text-sm sm:text-base touch-manipulation"
+          aria-label="Open style assistant"
         >
-          💬 Style Assistant
+          <span className="hidden sm:inline">💬 Style Assistant</span>
+          <span className="sm:hidden">💬</span>
         </button>
       ) : (
-        <div className="bg-white rounded-lg shadow-2xl w-96 h-[500px] flex flex-col">
+        <div className="bg-white rounded-lg sm:rounded-lg shadow-2xl w-screen sm:w-96 h-screen sm:h-[500px] max-h-[600px] flex flex-col fixed sm:relative inset-0 sm:inset-auto sm:bottom-auto sm:right-auto">
           {/* Header */}
-          <div className="bg-black text-white p-4 rounded-t-lg flex justify-between items-center">
-            <h3 className="font-semibold">Stylr AI Assistant</h3>
+          <div className="bg-black text-white p-4 rounded-t-lg sm:rounded-t-lg flex justify-between items-center">
+            <h3 className="font-semibold text-sm sm:text-base">Stylr AI Assistant</h3>
             <button
               onClick={() => setIsOpen(false)}
-              className="text-white hover:text-gray-300"
+              className="text-white hover:text-gray-300 p-1 touch-manipulation"
+              aria-label="Close chat"
             >
               ✕
             </button>
@@ -147,20 +150,20 @@ export function StyleChat({ userId }: StyleChatProps) {
           </div>
 
           {/* Input */}
-          <form onSubmit={handleSubmit} className="p-4 border-t">
+          <form onSubmit={handleSubmit} className="p-3 sm:p-4 border-t">
             <div className="flex gap-2">
               <input
                 type="text"
                 value={input}
                 onChange={handleInputChange}
                 placeholder="Ask about style..."
-                className="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black text-sm"
+                className="flex-1 px-3 py-2.5 sm:py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black text-sm touch-manipulation"
                 disabled={isLoading}
               />
               <button
                 type="submit"
                 disabled={isLoading || !input.trim()}
-                className="bg-black text-white px-4 py-2 rounded-lg hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm"
+                className="bg-black text-white px-4 py-2.5 sm:py-2 rounded-lg hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed text-sm touch-manipulation min-w-[60px]"
               >
                 Send
               </button>

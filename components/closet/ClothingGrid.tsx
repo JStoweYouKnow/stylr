@@ -86,16 +86,16 @@ export default function ClothingGrid() {
     <div>
       {/* Filters */}
       {(types.length > 0 || colors.length > 0 || vibes.length > 0) && (
-        <div className="mb-6 p-4 bg-gray-50 rounded-lg space-y-3">
+        <div className="mb-6 p-3 sm:p-4 bg-gray-50 rounded-lg space-y-3">
           <h3 className="text-sm font-semibold">Filters</h3>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-2 sm:gap-3">
             {types.length > 0 && (
               <select
                 value={filter.type || ""}
                 onChange={(e) =>
                   setFilter({ ...filter, type: e.target.value || undefined })
                 }
-                className="px-3 py-1.5 border rounded-md text-sm"
+                className="px-3 py-2 border rounded-md text-sm touch-manipulation min-h-[44px]"
               >
                 <option value="">All Types</option>
                 {types.map((type) => (
@@ -111,7 +111,7 @@ export default function ClothingGrid() {
                 onChange={(e) =>
                   setFilter({ ...filter, color: e.target.value || undefined })
                 }
-                className="px-3 py-1.5 border rounded-md text-sm"
+                className="px-3 py-2 border rounded-md text-sm touch-manipulation min-h-[44px]"
               >
                 <option value="">All Colors</option>
                 {colors.map((color) => (
@@ -127,7 +127,7 @@ export default function ClothingGrid() {
                 onChange={(e) =>
                   setFilter({ ...filter, vibe: e.target.value || undefined })
                 }
-                className="px-3 py-1.5 border rounded-md text-sm"
+                className="px-3 py-2 border rounded-md text-sm touch-manipulation min-h-[44px]"
               >
                 <option value="">All Styles</option>
                 {vibes.map((vibe) => (

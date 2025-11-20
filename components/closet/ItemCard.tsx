@@ -57,8 +57,9 @@ export default function ItemCard({ item, onDelete }: ItemCardProps) {
         <button
           onClick={handleDelete}
           disabled={isDeleting}
-          className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 disabled:opacity-50"
+          className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity hover:bg-red-600 disabled:opacity-50 touch-manipulation"
           title="Delete item"
+          aria-label="Delete item"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
