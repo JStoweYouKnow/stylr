@@ -8,6 +8,11 @@ const withPWA = require('@ducanh2912/next-pwa').default({
   workboxOptions: {
     disableDevLogs: true,
   },
+  // Exclude problematic files from PWA processing
+  buildExcludes: [
+    /app-build-manifest\.json$/,
+    /client-reference-manifest\.js$/,
+  ],
 });
 
 /** @type {import('next').NextConfig} */
