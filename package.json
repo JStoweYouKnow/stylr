@@ -4,13 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
+    "postinstall": "prisma generate",
     "start": "next start",
     "lint": "next lint"
   },
   "dependencies": {
     "@ai-sdk/google": "^2.0.39",
     "@ducanh2912/next-pwa": "^10.2.9",
+    "@prisma/client": "^5.22.0",
     "@vercel/blob": "^2.0.0",
     "ai": "^5.0.97",
     "axios": "^1.6.0",
@@ -32,7 +34,6 @@
     "zod": "^4.1.12"
   },
   "devDependencies": {
-    "@prisma/client": "^5.22.0",
     "@types/node": "^20.0.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
