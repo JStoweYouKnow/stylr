@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { scrapeAndStoreTrends } from "@/lib/scrapers/trends";
 
+export const dynamic = "force-dynamic"; // Force dynamic rendering
+
 // Vercel Cron will call this endpoint
 export async function GET(request: NextRequest) {
   try {

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { generateMultipleOutfits } from "@/lib/outfit-generator";
 
+export const dynamic = "force-dynamic"; // Force dynamic rendering
+
 export async function POST(request: NextRequest) {
   try {
     const { userId, occasion, count = 3 } = await request.json();

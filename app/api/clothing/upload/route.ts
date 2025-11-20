@@ -4,6 +4,8 @@ import { analyzeClothingImage } from "@/lib/ai/vision";
 import { generateClothingEmbedding } from "@/lib/ai/embeddings";
 import { prisma } from "@/lib/db";
 
+export const dynamic = "force-dynamic"; // Force dynamic rendering
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();

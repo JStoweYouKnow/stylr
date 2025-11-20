@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
+export const dynamic = "force-dynamic"; // Force dynamic rendering
+
 export async function POST(request: NextRequest) {
   try {
     const { outfitId, type = "saved" } = await request.json();

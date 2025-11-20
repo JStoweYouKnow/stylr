@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getWeatherBasedOutfitSuggestion } from "@/lib/weather";
 import { prisma } from "@/lib/db";
 
+export const dynamic = "force-dynamic"; // Force dynamic rendering
+
 export async function POST(request: NextRequest) {
   try {
     const { latitude, longitude, userId } = await request.json();

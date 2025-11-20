@@ -2,7 +2,7 @@ import { streamText } from "ai";
 import { google } from "@ai-sdk/google";
 import { prisma } from "@/lib/db";
 
-export const runtime = "edge";
+export const dynamic = "force-dynamic"; // Force dynamic rendering
 
 export async function POST(req: Request) {
   const { messages, userId } = await req.json();

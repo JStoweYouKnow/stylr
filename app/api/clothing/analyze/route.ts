@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeClothingImage } from "@/lib/ai/vision";
 
+export const dynamic = "force-dynamic"; // Force dynamic rendering
+
 export async function POST(request: NextRequest) {
   try {
     const { imageUrl } = await request.json();

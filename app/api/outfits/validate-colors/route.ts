@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateColorPalette, suggestComplementaryColors } from "@/lib/color-validator";
 import { prisma } from "@/lib/db";
 
+export const dynamic = "force-dynamic"; // Force dynamic rendering
+
 export async function POST(request: NextRequest) {
   try {
     const { itemIds, colors } = await request.json();

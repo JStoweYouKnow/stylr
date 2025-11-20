@@ -200,9 +200,11 @@ All tables support Row Level Security (RLS) for multi-user privacy. See the migr
 
 ## 📚 Documentation
 
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Production deployment guide for Vercel
 - **[QUICK_START.md](QUICK_START.md)** - Complete API usage guide with examples
 - **[FEATURES_ROADMAP.md](FEATURES_ROADMAP.md)** - 15+ features ready to implement
 - **[SESSION_SUMMARY.md](SESSION_SUMMARY.md)** - What was just built
+- **[API_REFERENCE.md](API_REFERENCE.md)** - Quick API reference
 - **[lib/ai/README.md](lib/ai/README.md)** - AI provider setup guide
 
 ## 🚀 Coming Soon

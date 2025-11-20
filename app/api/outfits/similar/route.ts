@@ -5,6 +5,8 @@ import {
   cosineSimilarity,
 } from "@/lib/ai/embeddings";
 
+export const dynamic = "force-dynamic"; // Force dynamic rendering
+
 export async function POST(request: NextRequest) {
   try {
     const { itemId, metadata } = await request.json();
