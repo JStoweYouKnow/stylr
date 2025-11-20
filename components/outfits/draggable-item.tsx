@@ -1,6 +1,7 @@
 "use client";
 
 import { useDrag } from "react-dnd";
+import type { Ref } from "react";
 import Image from "next/image";
 
 interface DraggableItemProps {
@@ -21,10 +22,11 @@ export default function DraggableItem({ item }: DraggableItemProps) {
       isDragging: monitor.isDragging(),
     }),
   }));
+  const dragRef = drag as unknown as Ref<HTMLDivElement>;
 
   return (
     <div
-      ref={drag}
+      ref={dragRef}
       className={`cursor-move border rounded-lg overflow-hidden bg-white transition-opacity ${
         isDragging ? "opacity-50" : "opacity-100"
       }`}

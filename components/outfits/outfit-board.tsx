@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import type { Ref } from "react";
 import { DndProvider, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import Image from "next/image";
@@ -232,7 +233,7 @@ function OutfitSlot({
   onRemove,
 }: {
   slot: OutfitSlot;
-  onDrop: (category: string, itemId: number) => void;
+  onDrop: (category: OutfitSlot["category"], itemId: number) => void;
   onRemove: (category: string) => void;
 }) {
   const [{ isOver }, drop] = useDrop(() => ({
@@ -252,9 +253,11 @@ function OutfitSlot({
     accessory: "Accessory",
   };
 
+  const dropRef = drop as unknown as Ref<HTMLDivElement>;
+
   return (
     <div
-      ref={drop}
+      ref={dropRef}
       className={`border-2 border-dashed rounded-lg p-4 min-h-[200px] transition-colors ${
         isOver ? "border-blue-500 bg-blue-50" : "border-gray-300 bg-white"
       }`}

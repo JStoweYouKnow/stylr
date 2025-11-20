@@ -22,8 +22,10 @@ export function generateClothingEmbedding(data: {
   primaryColor?: string | null;
   secondaryColor?: string | null;
   pattern?: string | null;
+  fit?: string | null;
   vibe?: string | null;
   notes?: string | null;
+  layeringCategory?: string | null;
 }): number[] {
   const text = Object.values(data)
     .filter(Boolean)

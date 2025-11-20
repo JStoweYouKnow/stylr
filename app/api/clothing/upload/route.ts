@@ -13,15 +13,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    // Validate file type
     if (!file.type.startsWith("image/")) {
       return NextResponse.json({ error: "File must be an image" }, { status: 400 });
     }
 
-    // Get user ID from session (will be null until auth is implemented)
-    const userId = null; // TODO: Get from auth session
+    const userId = null; // TODO: replace with authenticated user
 
-    // Create upload log entry
     const uploadLog = await prisma.upload.create({
       data: {
         userId: userId || undefined,
@@ -31,25 +28,21 @@ export async function POST(request: NextRequest) {
     });
 
     try {
-      // Upload to Vercel Blob
       const timestamp = Date.now();
       const filename = `${timestamp}-${file.name}`;
       const blobPath = `clothing/${filename}`;
       const blob = await uploadToBlob(file, blobPath);
 
-      // Update upload log with image URL
       await prisma.upload.update({
         where: { id: uploadLog.id },
         data: { imageUrl: blob.url, status: "analyzed" },
       });
 
-      // Analyze with Claude Vision
       let analysis;
       try {
         analysis = await analyzeClothingImage(blob.url);
       } catch (error) {
-        console.error("Claude analysis error:", error);
-        // Update upload log with error
+        console.error("Vision analysis error:", error);
         await prisma.upload.update({
           where: { id: uploadLog.id },
           data: {
@@ -57,7 +50,6 @@ export async function POST(request: NextRequest) {
             errorMessage: error instanceof Error ? error.message : "Analysis failed",
           },
         });
-        // Continue even if analysis fails - we still have the image
         analysis = {
           type: null,
           primaryColor: null,
@@ -70,7 +62,6 @@ export async function POST(request: NextRequest) {
         };
       }
 
-      // Save to database
       const embedding = generateClothingEmbedding(analysis);
 
       const clothingItem = await prisma.clothingItem.create({
@@ -87,11 +78,10 @@ export async function POST(request: NextRequest) {
           notes: analysis.notes || null,
           layeringCategory: analysis.layeringCategory || null,
           embedding,
-          tags: [], // Tags can be added later
+          tags: [],
         },
       });
 
-      // Update upload log to success
       await prisma.upload.update({
         where: { id: uploadLog.id },
         data: { status: "analyzed" },
@@ -104,7 +94,6 @@ export async function POST(request: NextRequest) {
       });
     } catch (error) {
       console.error("Upload error:", error);
-      // Update upload log with error
       try {
         await prisma.upload.update({
           where: { id: uploadLog.id },
@@ -121,5 +110,12 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+  } catch (error) {
+    console.error("Unexpected upload error:", error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Upload failed" },
+      { status: 500 }
+    );
   }
+}
 

@@ -48,11 +48,15 @@ export default function ClothingGrid() {
   }
 
   // Get unique values for filters
-  const types = Array.from(new Set(items.map((i) => i.type).filter(Boolean)));
+  const types = Array.from(
+    new Set(items.map((i) => i.type).filter(Boolean))
+  ) as string[];
   const colors = Array.from(
     new Set(items.map((i) => i.primaryColor).filter(Boolean))
-  );
-  const vibes = Array.from(new Set(items.map((i) => i.vibe).filter(Boolean)));
+  ) as string[];
+  const vibes = Array.from(
+    new Set(items.map((i) => i.vibe).filter(Boolean))
+  ) as string[];
 
   // Filter items
   const filteredItems = items.filter((item) => {

@@ -106,7 +106,9 @@ export default function WardrobeStats() {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ color, count }) => `${color}: ${count}`}
+                  label={({ payload }) =>
+                    `${payload?.color ?? "Unknown"}: ${payload?.count ?? 0}`
+                  }
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="count"
@@ -152,7 +154,9 @@ export default function WardrobeStats() {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ vibe, count }) => `${vibe}: ${count}`}
+                  label={({ payload }) =>
+                    `${payload?.vibe ?? "Unknown"}: ${payload?.count ?? 0}`
+                  }
                   outerRadius={80}
                   fill="#82ca9d"
                   dataKey="count"

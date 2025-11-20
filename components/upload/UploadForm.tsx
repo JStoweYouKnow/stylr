@@ -1,13 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 export default function UploadForm() {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [removeBg, setRemoveBg] = useState(true);
-  const [processingBg, setProcessingBg] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
@@ -22,32 +19,8 @@ export default function UploadForm() {
     setSuccess(false);
 
     try {
-      let fileToUpload: File = file;
-
-      if (removeBg) {
-        setProcessingBg(true);
-        try {
-          const { removeBackground } = await import("@imgly/background-removal");
-          const resultBlob = await removeBackground(file, {
-            debug: false,
-          });
-          fileToUpload = new File(
-            [resultBlob],
-            `stylr-${Date.now()}.png`,
-            { type: "image/png" }
-          );
-          setPreviewUrl(URL.createObjectURL(resultBlob));
-        } catch (bgError) {
-          console.error("Background removal failed:", bgError);
-          setError("Background removal failed. Uploading original image.");
-          setRemoveBg(false);
-        } finally {
-          setProcessingBg(false);
-        }
-      }
-
       const formData = new FormData();
-      formData.append("file", fileToUpload);
+      formData.append("file", file);
 
       const res = await fetch("/api/clothing/upload", {
         method: "POST",
@@ -63,7 +36,6 @@ export default function UploadForm() {
       console.log("Upload result:", data);
       setSuccess(true);
       setFile(null);
-      setPreviewUrl(null);
       
       // Reset file input
       const fileInput = document.getElementById("file-input") as HTMLInputElement;
@@ -79,16 +51,6 @@ export default function UploadForm() {
       setUploading(false);
     }
   }
-
-  useEffect(() => {
-    if (!file) {
-      setPreviewUrl(null);
-      return;
-    }
-    const url = URL.createObjectURL(file);
-    setPreviewUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [file]);
 
   return (
     <div className="p-6 border rounded-xl max-w-2xl">
@@ -118,29 +80,12 @@ export default function UploadForm() {
           <div className="mt-4">
             <p className="text-sm text-gray-600 mb-2">Preview:</p>
             <img
-              src={previewUrl || URL.createObjectURL(file)}
+              src={URL.createObjectURL(file)}
               alt="Preview"
               className="max-w-xs rounded-lg border"
             />
-            {processingBg && (
-              <p className="text-xs text-gray-500 mt-2">
-                Removing background...
-              </p>
-            )}
           </div>
         )}
-
-        <div className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            id="remove-bg"
-            checked={removeBg}
-            onChange={(e) => setRemoveBg(e.target.checked)}
-          />
-          <label htmlFor="remove-bg" className="text-gray-700">
-            Remove background before upload (beta)
-          </label>
-        </div>
 
         {error && (
           <div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
@@ -157,13 +102,9 @@ export default function UploadForm() {
         <button
           className="mt-4 px-6 py-2 bg-black text-white rounded-md hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
           onClick={handleUpload}
-          disabled={!file || uploading || processingBg}
+          disabled={!file || uploading}
         >
-          {processingBg
-            ? "Processing..."
-            : uploading
-            ? "Uploading..."
-            : "Upload & Analyze"}
+          {uploading ? "Uploading..." : "Upload & Analyze"}
         </button>
       </div>
     </div>

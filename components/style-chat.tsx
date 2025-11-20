@@ -1,17 +1,86 @@
 "use client";
 
-import { useChat } from "ai/react";
 import { useState } from "react";
 
 interface StyleChatProps {
   userId?: string;
 }
 
+interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+}
+
 export function StyleChat({ userId }: StyleChatProps) {
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
-    api: "/api/chat",
-    body: { userId },
-  });
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  function handleInputChange(event: React.ChangeEvent<HTMLInputElement>) {
+    setInput(event.target.value);
+  }
+
+  async function handleSubmit(event?: React.FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    const trimmed = input.trim();
+    if (!trimmed) return;
+
+    const userMessage: ChatMessage = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      content: trimmed,
+    };
+    const baseMessages = [...messages, userMessage];
+    setMessages(baseMessages);
+    setInput("");
+
+    setIsLoading(true);
+    const assistantId = `assistant-${Date.now()}`;
+    setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "" }]);
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          messages: baseMessages.map(({ role, content }) => ({ role, content })),
+        }),
+      });
+
+      if (!res.body) throw new Error("No response body");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let assistantContent = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        assistantContent += decoder.decode(value, { stream: true });
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === assistantId ? { ...msg, content: assistantContent.trimStart() } : msg
+          )
+        );
+      }
+    } catch (error) {
+      console.error("Chat error:", error);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === assistantId
+            ? {
+                ...msg,
+                content: "Sorry, I ran into an issue. Please try again in a moment.",
+              }
+            : msg
+        )
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   const [isOpen, setIsOpen] = useState(false);
 

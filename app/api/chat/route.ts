@@ -56,8 +56,8 @@ Guidelines:
     system: systemPrompt,
     messages,
     temperature: 0.7,
-    maxTokens: 500,
+    maxOutputTokens: 500,
   });
 
-  return result.toDataStreamResponse();
+  return result.toTextStreamResponse();
 }

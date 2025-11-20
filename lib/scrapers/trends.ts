@@ -56,7 +56,7 @@ export async function scrapeAndStoreTrends() {
 Article: ${article.title}
 ${article.summary}`,
         temperature: 0.3,
-        maxTokens: 300,
+        maxOutputTokens: 300,
       });
 
       // Parse AI response
