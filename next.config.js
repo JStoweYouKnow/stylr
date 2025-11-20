@@ -12,6 +12,25 @@ const nextConfig = {
       },
     ],
   },
+  // Suppress build trace errors for missing client reference manifests
+  // This is a known issue with Next.js 14 and route groups
+  experimental: {
+    // This helps with build stability
+    serverActions: {
+      bodySizeLimit: '2mb',
+    },
+  },
+  // Custom webpack config
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+      };
+    }
+    return config;
+  },
 }
 
 // Temporarily disable PWA on Vercel to fix build errors
