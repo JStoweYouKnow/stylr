@@ -12,15 +12,8 @@ const nextConfig = {
       },
     ],
   },
-  // Suppress build trace errors for missing client reference manifests
-  // This is a known issue with Next.js 14 and route groups
-  experimental: {
-    // This helps with build stability
-    serverActions: {
-      bodySizeLimit: '2mb',
-    },
-  },
-  // Custom webpack config
+  // Use webpack instead of Turbopack for now (since we have webpack config)
+  // Can migrate to Turbopack later if needed
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {
@@ -31,6 +24,9 @@ const nextConfig = {
     }
     return config;
   },
+  // Add empty turbopack config to silence the warning
+  // We're using webpack for now
+  turbopack: {},
 }
 
 // Temporarily disable PWA on Vercel to fix build errors

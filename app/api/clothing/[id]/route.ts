@@ -5,10 +5,11 @@ export const dynamic = "force-dynamic"; // Force dynamic rendering
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const itemId = parseInt(params.id);
+    const { id } = await params;
+    const itemId = parseInt(id);
     if (isNaN(itemId)) {
       return NextResponse.json({ error: "Invalid item ID" }, { status: 400 });
     }
@@ -33,10 +34,11 @@ export async function GET(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const itemId = parseInt(params.id);
+    const { id } = await params;
+    const itemId = parseInt(id);
     if (isNaN(itemId)) {
       return NextResponse.json({ error: "Invalid item ID" }, { status: 400 });
     }
