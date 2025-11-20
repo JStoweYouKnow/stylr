@@ -7,7 +7,7 @@ Your app is **ready to deploy**! Here's what's configured:
 - ✅ Prisma client generation in build script
 - ✅ All dependencies properly configured
 - ✅ PWA manifest and service worker
-- ✅ Edge runtime for chat API
+- ✅ All API routes marked as dynamic (prevents build-time static generation)
 - ✅ Free AI providers (Gemini, Groq)
 - ✅ Environment variables documented
 
@@ -177,14 +177,11 @@ Monitor:
 
 **Fix**: `@prisma/client` is now in `dependencies` (not devDependencies)
 
-### Edge Runtime Issues
+### Dynamic Route Issues
 
-**Error**: "Dynamic Code Evaluation not allowed in Edge Runtime"
+**Error**: "Failed to collect page data" during build
 
-**Fix**: Chat endpoint already uses Edge-compatible code. If adding new Edge functions, avoid:
-- `eval()`
-- `Function()`
-- `vm` module
+**Fix**: All API routes are now marked with `export const dynamic = "force-dynamic"` to prevent Next.js from trying to statically generate them during build time. This is required for routes that use Prisma or other dynamic features.
 
 ### Image Upload Fails
 
