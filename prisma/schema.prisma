@@ -1,0 +1,150 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  clothingItems     ClothingItem[]
+  outfitRecs        OutfitRecommendation[]
+  savedOutfits      SavedOutfit[]
+  wearEvents        WearEvent[]
+  uploads           Upload[]
+  styleProfile      StyleProfile?
+
+  @@map("users")
+}
+
+model ClothingItem {
+  id        Int      @id @default(autoincrement())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String?  @map("user_id")
+
+  imageUrl  String   @map("image_url")
+  blobPath  String?  @map("blob_path")
+  embedding Float[] @map("embedding") @db.DoublePrecision @default([])
+
+  // AI metadata
+  type          String?
+  primaryColor  String?  @map("primary_color")
+  secondaryColor String? @map("secondary_color")
+  pattern       String?
+  fit           String?
+  vibe          String?
+  notes         String?
+  layeringCategory String? @map("layering_category")
+
+  tags          String[]
+
+  wearEvents    WearEvent[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId], name: "clothing_items_user_idx")
+  @@index([type], name: "idx_clothing_type")
+  @@index([primaryColor], name: "idx_clothing_color")
+  @@index([tags], type: Gin, name: "idx_tags_gin")
+  @@map("clothing_items")
+}
+
+model StyleRule {
+  id          Int      @id @default(autoincrement())
+  source      String
+  title       String?
+  description String?
+  rule        Json
+  season      String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("style_rules")
+}
+
+model OutfitRecommendation {
+  id          Int        @id @default(autoincrement())
+  user        User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String?    @map("user_id")
+
+  items             Int[]
+  occasion          String?
+  generatedBy       String?  @map("generated_by")
+  confidenceScore   Float?   @map("confidence_score")
+  aiExplanation     String?  @map("ai_explanation")
+  embedding         Float[] @map("embedding") @db.DoublePrecision @default([])
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId], name: "outfit_recommendations_user_idx")
+  @@index([items], type: Gin, name: "idx_outfits_items")
+  @@map("outfit_recommendations")
+}
+
+model SavedOutfit {
+  id        Int      @id @default(autoincrement())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String?  @map("user_id")
+
+  items     Int[]
+  name      String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("saved_outfits")
+}
+
+model WearEvent {
+  id            Int      @id @default(autoincrement())
+  user          User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String?  @map("user_id")
+  clothingItem  ClothingItem @relation(fields: [clothingItemId], references: [id], onDelete: Cascade)
+  clothingItemId Int     @map("clothing_item_id")
+
+  wornOn    DateTime  @map("worn_on")
+  context   String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId], name: "wear_events_user_idx")
+  @@map("wear_events")
+}
+
+model Upload {
+  id            Int      @id @default(autoincrement())
+  user          User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String?  @map("user_id")
+
+  imageUrl      String   @map("image_url")
+  status        String?
+  errorMessage  String?  @map("error_message")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("uploads")
+}
+
+model StyleProfile {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @unique @map("user_id")
+
+  preferredStyles   String[] @map("preferred_styles")
+  occasionFrequency Json     @map("occasion_frequency")
+  favoriteColors    String[] @map("favorite_colors")
+  bodyType          String?  @map("body_type")
+  climate           String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("style_profiles")
+}
