@@ -67,7 +67,7 @@ export default function Sidebar() {
           isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
-        <Link href="/" onClick={() => setIsOpen(false)}>
+        <Link href="/" onClick={() => setIsOpen(false)} className="mt-14 lg:mt-0">
           <h1 className="text-2xl font-bold">Stylr</h1>
         </Link>
         <nav className="flex flex-col gap-2">
