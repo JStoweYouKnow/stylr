@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import toast from "react-hot-toast";
+import { PurchasesSkeleton } from "@/components/LoadingSkeleton";
 
 interface Purchase {
   id: number;
@@ -75,14 +77,46 @@ export default function PurchasesPage() {
   };
 
   const handleDeletePurchase = async (id: number) => {
-    if (!confirm("Delete this purchase?")) return;
+    // Use toast for confirmation
+    toast((t) => (
+      <div>
+        <p className="font-medium mb-2">Delete this purchase?</p>
+        <p className="text-sm text-gray-600 mb-3">
+          This action cannot be undone.
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              toast.dismiss(t.id);
+              performDelete(id);
+            }}
+            className="px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+          >
+            Delete
+          </button>
+          <button
+            onClick={() => toast.dismiss(t.id)}
+            className="px-3 py-1.5 bg-gray-200 text-gray-800 text-sm rounded hover:bg-gray-300"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    ), {
+      duration: 10000,
+    });
+  };
+
+  const performDelete = async (id: number) => {
+    const loadingToast = toast.loading("Deleting purchase...");
 
     try {
       await fetch(`/api/purchases?id=${id}`, { method: "DELETE" });
       setPurchases((prev) => prev.filter((p) => p.id !== id));
+      toast.success("Purchase deleted", { id: loadingToast });
     } catch (error) {
       console.error("Failed to delete purchase:", error);
-      alert("Failed to delete purchase");
+      toast.error("Failed to delete purchase", { id: loadingToast });
     }
   };
 
@@ -118,8 +152,8 @@ export default function PurchasesPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-gray-600">Loading purchases...</p>
+      <div className="max-w-6xl mx-auto p-6">
+        <PurchasesSkeleton />
       </div>
     );
   }

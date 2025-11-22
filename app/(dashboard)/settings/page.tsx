@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import toast from "react-hot-toast";
 
 export default function SettingsPage() {
   // TODO: Replace with actual user authentication
@@ -37,11 +38,13 @@ export default function SettingsPage() {
 
   const handleConnectGmail = async () => {
     if (!user?.id) {
-      alert("Please log in first");
+      toast.error("Please log in first");
       return;
     }
 
     setIsLoading(true);
+    const loadingToast = toast.loading("Connecting to Gmail...");
+
     try {
       const response = await fetch("/api/purchases/connect/gmail", {
         method: "POST",
@@ -52,14 +55,15 @@ export default function SettingsPage() {
       const data = await response.json();
 
       if (data.authUrl) {
+        toast.success("Redirecting to Google...", { id: loadingToast });
         // Redirect to Google OAuth
         window.location.href = data.authUrl;
       } else {
-        alert("Failed to connect Gmail: " + (data.error || "Unknown error"));
+        toast.error(data.error || "Failed to connect Gmail", { id: loadingToast });
       }
     } catch (error) {
       console.error("Error connecting Gmail:", error);
-      alert("Failed to connect Gmail. Please try again.");
+      toast.error("Failed to connect Gmail. Please try again.", { id: loadingToast });
     } finally {
       setIsLoading(false);
     }
@@ -69,6 +73,8 @@ export default function SettingsPage() {
     if (!user?.id) return;
 
     setIsLoading(true);
+    const loadingToast = toast.loading("Scanning emails for purchases...");
+
     try {
       const response = await fetch("/api/purchases/scan", {
         method: "POST",
@@ -82,16 +88,20 @@ export default function SettingsPage() {
       const data = await response.json();
 
       if (data.error) {
-        alert("Error: " + data.error);
+        toast.error(data.error, { id: loadingToast });
       } else {
-        alert(
-          `Scan complete!\n\nScanned: ${data.scanned} emails\nFound: ${data.found} purchases\nNew items: ${data.new}\nDuplicates: ${data.duplicates}`
+        toast.success(
+          `Found ${data.new} new purchase${data.new !== 1 ? 's' : ''}! (${data.scanned} emails scanned)`,
+          {
+            id: loadingToast,
+            duration: 6000,
+          }
         );
         setPurchaseCount((prev) => prev + (data.new || 0));
       }
     } catch (error) {
       console.error("Error scanning purchases:", error);
-      alert("Failed to scan purchases. Please try again.");
+      toast.error("Failed to scan purchases. Please try again.", { id: loadingToast });
     } finally {
       setIsLoading(false);
     }
@@ -99,19 +109,47 @@ export default function SettingsPage() {
 
   const handleDisconnectGmail = async () => {
     if (!user?.id) return;
-    if (!confirm("Are you sure you want to disconnect your Gmail account?")) {
-      return;
-    }
 
+    // Using toast for confirmation instead of confirm()
+    toast((t) => (
+      <div>
+        <p className="font-medium mb-2">Disconnect Gmail?</p>
+        <p className="text-sm text-gray-600 mb-3">
+          This will stop scanning your emails for purchases.
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              toast.dismiss(t.id);
+              performDisconnect();
+            }}
+            className="px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+          >
+            Disconnect
+          </button>
+          <button
+            onClick={() => toast.dismiss(t.id)}
+            className="px-3 py-1.5 bg-gray-200 text-gray-800 text-sm rounded hover:bg-gray-300"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    ), {
+      duration: 10000,
+    });
+  };
+
+  const performDisconnect = async () => {
     setIsLoading(true);
     try {
       // This would call a disconnect endpoint
       // For now, we'll just update the UI
       setIsConnected(false);
-      alert("Gmail disconnected successfully");
+      toast.success("Gmail disconnected successfully");
     } catch (error) {
       console.error("Error disconnecting Gmail:", error);
-      alert("Failed to disconnect Gmail. Please try again.");
+      toast.error("Failed to disconnect Gmail. Please try again.");
     } finally {
       setIsLoading(false);
     }

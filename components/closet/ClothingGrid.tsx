@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import ItemCard from "./ItemCard";
+import EmptyState, { ShirtIcon } from "@/components/EmptyState";
+import { GridSkeleton } from "@/components/LoadingSkeleton";
 
 interface ClothingItem {
   id: number;
@@ -67,11 +69,7 @@ export default function ClothingGrid() {
   });
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <p className="text-gray-600">Loading your closet...</p>
-      </div>
-    );
+    return <GridSkeleton count={8} />;
   }
 
   if (error) {
@@ -151,12 +149,32 @@ export default function ClothingGrid() {
 
       {/* Grid */}
       {filteredItems.length === 0 ? (
-        <div className="text-center py-12 text-gray-600">
-          <p className="mb-2">No items found</p>
-          <a href="/upload" className="text-black hover:underline">
-            Upload your first item
-          </a>
-        </div>
+        items.length === 0 ? (
+          <EmptyState
+            icon={<ShirtIcon />}
+            title="Your closet is empty"
+            description="Start building your digital wardrobe by uploading photos of your clothes. Get AI-powered outfit recommendations and style insights!"
+            primaryAction={{
+              label: "Upload Your First Item",
+              href: "/upload",
+            }}
+            secondaryAction={{
+              label: "Learn How It Works",
+              href: "#",
+              onClick: () => alert("Tutorial coming soon!"),
+            }}
+          />
+        ) : (
+          <EmptyState
+            icon={<ShirtIcon />}
+            title="No items match your filters"
+            description="Try adjusting your filters or clearing them to see more items."
+            primaryAction={{
+              label: "Clear Filters",
+              onClick: () => setFilter({}),
+            }}
+          />
+        )
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {filteredItems.map((item) => (
