@@ -40,6 +40,13 @@ async function generateIcons() {
       .toFile(path.join(publicDir, 'icon-512.png'));
     console.log('✅ Created icon-512.png');
 
+    // Generate 1024x1024 icon for iOS App Store
+    await sharp(Buffer.from(iconSvg))
+      .resize(1024, 1024)
+      .png()
+      .toFile(path.join(publicDir, 'icon-1024.png'));
+    console.log('✅ Created icon-1024.png');
+
     // Also create apple-touch-icon (180x180)
     await sharp(Buffer.from(iconSvg))
       .resize(180, 180)

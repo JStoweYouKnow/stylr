@@ -5,12 +5,25 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
+    "build:ios": "node scripts/build-ios.js",
     "postinstall": "prisma generate",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "ios:dev": "npx cap open ios",
+    "ios:sync": "npx cap sync ios",
+    "ios:copy": "npx cap copy ios",
+    "ios:build": "npm run build:ios"
   },
   "dependencies": {
     "@ai-sdk/google": "^2.0.39",
+    "@capacitor/app": "^7.1.0",
+    "@capacitor/cli": "^7.4.4",
+    "@capacitor/core": "^7.4.4",
+    "@capacitor/haptics": "^7.0.2",
+    "@capacitor/ios": "^7.4.4",
+    "@capacitor/keyboard": "^7.0.3",
+    "@capacitor/splash-screen": "^7.0.3",
+    "@capacitor/status-bar": "^7.0.3",
     "@ducanh2912/next-pwa": "^10.2.9",
     "@prisma/client": "^5.22.0",
     "@vercel/blob": "^2.0.0",
