@@ -4,8 +4,16 @@ import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic"; // Force dynamic rendering
 
+import { getCurrentUserId } from "@/lib/auth-helpers";
+
 export async function POST(req: Request) {
-  const { messages, userId } = await req.json();
+  const userId = await getCurrentUserId();
+
+  if (!userId) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  const { messages } = await req.json();
 
   // Fetch user's wardrobe for context
   let wardrobeContext = "";

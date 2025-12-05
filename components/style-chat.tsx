@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 
 interface StyleChatProps {
-  userId?: string;
+  userId?: string; // Optional, will use session if not provided
 }
 
 interface ChatMessage {
@@ -12,7 +13,9 @@ interface ChatMessage {
   content: string;
 }
 
-export function StyleChat({ userId }: StyleChatProps) {
+export function StyleChat({ userId: propUserId }: StyleChatProps) {
+  const { data: session } = useSession();
+  const userId = propUserId || session?.user?.id;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -44,7 +47,6 @@ export function StyleChat({ userId }: StyleChatProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId,
           messages: baseMessages.map(({ role, content }) => ({ role, content })),
         }),
       });

@@ -5,7 +5,7 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <ErrorBoundary>
-      <div className="flex w-full min-h-screen">
+      <div className="min-h-screen w-full lg:flex">
         <Toaster
           position="top-right"
           toastOptions={{
@@ -32,7 +32,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           }}
         />
         <Sidebar />
-        <main className="flex-1 p-4 lg:p-6 pt-16 lg:pt-6 w-full">{children}</main>
+        <main className="min-h-screen w-full lg:flex-1 p-4 lg:p-6 pt-16 lg:pt-6">
+          {children}
+        </main>
       </div>
     </ErrorBoundary>
   );

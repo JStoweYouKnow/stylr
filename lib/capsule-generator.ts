@@ -77,27 +77,43 @@ export function generateCapsuleWardrobe(
 
 /**
  * Select the most versatile core items for capsule
+ * Follows capsule wardrobe principles: neutral colors, timeless pieces, versatility
  */
 function selectCoreItems(items: ClothingItem[], targetSize: number): ClothingItem[] {
-  // Group by type and color
-  const neutralColors = ["black", "white", "gray", "grey", "navy", "beige", "brown"];
+  // Expanded neutral color palette (per capsule wardrobe guidelines)
+  const neutralColors = [
+    "black", "white", "gray", "grey", "navy", "beige", "brown", 
+    "camel", "taupe", "cream", "ivory", "charcoal", "khaki"
+  ];
+
+  // Timeless, classic item types (per Donna Karan's "Seven Easy Pieces" concept)
+  const timelessTypes = [
+    "shirt", "blouse", "button-down", "t-shirt", "sweater",
+    "pants", "jeans", "trousers", "skirt",
+    "jacket", "blazer", "cardigan", "coat",
+    "dress"
+  ];
 
   const categorized = {
     tops: items.filter((i) =>
       i.type?.toLowerCase().includes("shirt") ||
       i.type?.toLowerCase().includes("top") ||
-      i.type?.toLowerCase().includes("blouse")
+      i.type?.toLowerCase().includes("blouse") ||
+      i.type?.toLowerCase().includes("t-shirt")
     ),
     bottoms: items.filter((i) =>
       i.type?.toLowerCase().includes("pants") ||
       i.type?.toLowerCase().includes("jeans") ||
+      i.type?.toLowerCase().includes("trousers") ||
       i.type?.toLowerCase().includes("skirt") ||
       i.type?.toLowerCase().includes("shorts")
     ),
     layers: items.filter((i) =>
       i.type?.toLowerCase().includes("jacket") ||
+      i.type?.toLowerCase().includes("blazer") ||
       i.type?.toLowerCase().includes("sweater") ||
       i.type?.toLowerCase().includes("cardigan") ||
+      i.type?.toLowerCase().includes("coat") ||
       i.layeringCategory === "outer" ||
       i.layeringCategory === "mid"
     ),
@@ -111,22 +127,46 @@ function selectCoreItems(items: ClothingItem[], targetSize: number): ClothingIte
 
   const selected: ClothingItem[] = [];
 
-  // Prioritize neutrals and versatile pieces
+  // Prioritize neutrals, timeless pieces, and versatile items
   const addItems = (arr: ClothingItem[], count: number, preferNeutral = true) => {
     const sorted = [...arr].sort((a, b) => {
+      // Score items: neutral colors + timeless types + versatile vibes
       const aNeutral = neutralColors.some((c) =>
         a.primaryColor?.toLowerCase().includes(c)
       );
       const bNeutral = neutralColors.some((c) =>
         b.primaryColor?.toLowerCase().includes(c)
       );
+      
+      const aTimeless = timelessTypes.some((t) =>
+        a.type?.toLowerCase().includes(t)
+      );
+      const bTimeless = timelessTypes.some((t) =>
+        b.type?.toLowerCase().includes(t)
+      );
+      
+      const aVersatile = a.vibe?.toLowerCase().includes("casual") || 
+                         a.vibe?.toLowerCase().includes("classic");
+      const bVersatile = b.vibe?.toLowerCase().includes("casual") || 
+                         b.vibe?.toLowerCase().includes("classic");
+
+      // Scoring: neutral (3pts) + timeless (2pts) + versatile (1pt)
+      let aScore = 0;
+      let bScore = 0;
+      
+      if (aNeutral) aScore += 3;
+      if (bNeutral) bScore += 3;
+      if (aTimeless) aScore += 2;
+      if (bTimeless) bScore += 2;
+      if (aVersatile) aScore += 1;
+      if (bVersatile) bScore += 1;
 
       if (preferNeutral) {
         if (aNeutral && !bNeutral) return -1;
         if (!aNeutral && bNeutral) return 1;
       }
 
-      return 0;
+      return bScore - aScore; // Higher score first
     });
 
     selected.push(...sorted.slice(0, count));

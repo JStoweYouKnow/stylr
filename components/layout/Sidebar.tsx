@@ -15,10 +15,14 @@ export default function Sidebar() {
     { href: "/outfits", label: "Outfits" },
     { href: "/outfits/create", label: "Create Outfit" },
     { href: "/recommendations", label: "Recommendations" },
+    { href: "/capsule", label: "Capsule Builder" },
     { href: "/purchases", label: "Purchases" },
     { href: "/analytics", label: "Analytics" },
     { href: "/wear-tracking", label: "Wear Tracking" },
     { href: "/style-quiz", label: "Style Quiz" },
+    { href: "/pricing", label: "Upgrade" },
+    { href: "/help", label: "Help & Tutorial" },
+    { href: "/privacy", label: "Privacy Policy" },
     { href: "/settings", label: "Settings" },
   ];
 
@@ -32,7 +36,8 @@ export default function Sidebar() {
       {/* Mobile Hamburger Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-black text-white rounded-md shadow-lg"
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-black text-white rounded-md shadow-lg min-h-[44px] min-w-[44px]"
+        style={{ top: 'max(1rem, env(safe-area-inset-top))' }}
         aria-label="Toggle menu"
       >
         <svg

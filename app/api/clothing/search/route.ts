@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getCurrentUserId } from "@/lib/auth-helpers";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
+    const userId = await getCurrentUserId();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
     const color = searchParams.get("color");
     const type = searchParams.get("type");
     const vibe = searchParams.get("vibe");
@@ -16,7 +22,7 @@ export async function GET(request: NextRequest) {
 
     // Build where clause dynamically
     const where: any = {
-      userId: userId || undefined,
+      userId,
     };
 
     if (color) {

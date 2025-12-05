@@ -233,3 +233,8 @@ npx cap sync ios
 - The app is fully responsive and mobile-optimized
 - Native iOS features (status bar, splash screen, etc.) are configured
 
+
+
+
+
+

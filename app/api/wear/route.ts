@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getCurrentUserId } from "@/lib/auth-helpers";
 
 export const dynamic = "force-dynamic"; // Force dynamic rendering
 
 // POST /api/wear - Log a wear event
 export async function POST(request: NextRequest) {
   try {
-    const userId = null; // TODO: Get from auth session
+    const userId = await getCurrentUserId();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const { clothingItemId, wornOn, context } = await request.json();
 
     if (!clothingItemId) {
@@ -18,7 +23,7 @@ export async function POST(request: NextRequest) {
 
     const wearEvent = await prisma.wearEvent.create({
       data: {
-        userId: userId || undefined,
+        userId,
         clothingItemId: parseInt(clothingItemId),
         wornOn: new Date(wornOn || Date.now()),
         context: context || null,
@@ -38,10 +43,14 @@ export async function POST(request: NextRequest) {
 // GET /api/wear - Get wear events for user
 export async function GET(request: NextRequest) {
   try {
-    const userId = null; // TODO: Get from auth session
+    const userId = await getCurrentUserId();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const wearEvents = await prisma.wearEvent.findMany({
-      where: userId ? { userId } : undefined,
+      where: { userId },
       include: {
         clothingItem: true,
       },

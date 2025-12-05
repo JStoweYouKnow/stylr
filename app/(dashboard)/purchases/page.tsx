@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { PurchasesSkeleton } from "@/components/LoadingSkeleton";
 
@@ -28,8 +30,8 @@ interface Recommendation {
 }
 
 export default function PurchasesPage() {
-  // TODO: Replace with actual user authentication
-  const user = { id: "demo-user" };
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [stats, setStats] = useState<any>(null);
@@ -37,17 +39,35 @@ export default function PurchasesPage() {
   const [activeTab, setActiveTab] = useState<"purchases" | "recommendations">("purchases");
 
   useEffect(() => {
-    if (user?.id) {
-      fetchPurchases();
-      fetchRecommendations();
+    if (status === "loading") return;
+    if (!session?.user?.id) {
+      router.push("/login");
+      return;
     }
-  }, [user]);
+    
+    // Check for Gmail connection success/error messages in URL
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("gmail_connected") === "true") {
+      toast.success("Gmail connected successfully! You can now scan for purchases.");
+      // Clean up URL
+      window.history.replaceState({}, "", "/purchases");
+    } else if (params.get("error") === "gmail_auth_denied") {
+      toast.error("Gmail connection was denied. Please try again.");
+      window.history.replaceState({}, "", "/purchases");
+    } else if (params.get("error") === "gmail_connection_failed") {
+      toast.error("Failed to connect Gmail. Please try again.");
+      window.history.replaceState({}, "", "/purchases");
+    }
+    
+    fetchPurchases();
+    fetchRecommendations();
+  }, [session, status, router]);
 
   const fetchPurchases = async () => {
-    if (!user?.id) return;
+    if (!session?.user?.id) return;
 
     try {
-      const response = await fetch(`/api/purchases?userId=${user.id}&limit=50&stats=true`);
+      const response = await fetch(`/api/purchases?userId=${session.user.id}&limit=50&stats=true`);
       const data = await response.json();
 
       setPurchases(data.purchases || []);
@@ -60,13 +80,13 @@ export default function PurchasesPage() {
   };
 
   const fetchRecommendations = async () => {
-    if (!user?.id) return;
+    if (!session?.user?.id) return;
 
     try {
       const response = await fetch("/api/recommendations/from-purchases", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id }),
+        body: JSON.stringify({ userId: session.user.id }),
       });
 
       const data = await response.json();

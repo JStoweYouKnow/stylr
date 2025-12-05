@@ -3,11 +3,55 @@ import { uploadToBlob } from "@/lib/blob/upload";
 import { analyzeClothingImage } from "@/lib/ai/vision";
 import { generateClothingEmbedding } from "@/lib/ai/embeddings";
 import { prisma } from "@/lib/db";
+import { getCurrentUserId } from "@/lib/auth-helpers";
+import { checkItemLimit } from "@/lib/stripe/subscription";
 
 export const dynamic = "force-dynamic"; // Force dynamic rendering
 
 export async function POST(request: NextRequest) {
   try {
+    // Check if DATABASE_URL is configured
+    if (!process.env.DATABASE_URL) {
+      console.error("DATABASE_URL is not set in environment variables");
+      return NextResponse.json(
+        { 
+          error: "Database configuration error",
+          message: "The database connection is not configured. Please contact support."
+        },
+        { status: 500 }
+      );
+    }
+
+    // Validate DATABASE_URL format
+    if (!process.env.DATABASE_URL.startsWith("postgresql://") && 
+        !process.env.DATABASE_URL.startsWith("postgres://")) {
+      console.error("Invalid DATABASE_URL format:", process.env.DATABASE_URL.substring(0, 20));
+      return NextResponse.json(
+        { 
+          error: "Database configuration error",
+          message: "The database connection URL is invalid. Please contact support."
+        },
+        { status: 500 }
+      );
+    }
+
+    const userId = await getCurrentUserId();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check subscription limits
+    const itemCheck = await checkItemLimit(userId);
+    if (!itemCheck.canAdd) {
+      return NextResponse.json({
+        error: "Item limit reached",
+        message: `You've reached your limit of ${itemCheck.limit} items. Upgrade your plan to add more.`,
+        limit: itemCheck.limit,
+        current: itemCheck.currentCount,
+      }, { status: 403 });
+    }
+
     const formData = await request.formData();
     const file = formData.get("file") as File;
 
@@ -19,11 +63,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "File must be an image" }, { status: 400 });
     }
 
-    const userId = null; // TODO: replace with authenticated user
-
     const uploadLog = await prisma.upload.create({
       data: {
-        userId: userId || undefined,
+        userId,
         imageUrl: "pending",
         status: "uploaded",
       },
@@ -68,7 +110,7 @@ export async function POST(request: NextRequest) {
 
       const clothingItem = await prisma.clothingItem.create({
         data: {
-          userId: userId || undefined,
+          userId,
           imageUrl: blob.url,
           blobPath: blob.pathname,
           type: analysis.type || null,
@@ -96,26 +138,63 @@ export async function POST(request: NextRequest) {
       });
     } catch (error) {
       console.error("Upload error:", error);
+      
+      // Check if it's a database connection error
+      const errorMessage = error instanceof Error ? error.message : "Upload failed";
+      const isDbError = errorMessage.includes("datasource") || 
+                       errorMessage.includes("DATABASE_URL") || 
+                       errorMessage.includes("postgresql://") ||
+                       errorMessage.includes("postgres://");
+      
       try {
         await prisma.upload.update({
           where: { id: uploadLog.id },
           data: {
             status: "failed",
-            errorMessage: error instanceof Error ? error.message : "Upload failed",
+            errorMessage: errorMessage,
           },
         });
       } catch (updateError) {
         console.error("Failed to update upload log:", updateError);
       }
+      
+      if (isDbError) {
+        return NextResponse.json(
+          { 
+            error: "Database connection error",
+            message: "Unable to connect to the database. Please try again later or contact support if the problem persists."
+          },
+          { status: 500 }
+        );
+      }
+      
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : "Upload failed" },
+        { error: errorMessage },
         { status: 500 }
       );
     }
   } catch (error) {
     console.error("Unexpected upload error:", error);
+    
+    // Check if it's a database connection error
+    const errorMessage = error instanceof Error ? error.message : "Upload failed";
+    const isDbError = errorMessage.includes("datasource") || 
+                     errorMessage.includes("DATABASE_URL") || 
+                     errorMessage.includes("postgresql://") ||
+                     errorMessage.includes("postgres://");
+    
+    if (isDbError) {
+      return NextResponse.json(
+        { 
+          error: "Database connection error",
+          message: "Unable to connect to the database. Please try again later or contact support if the problem persists."
+        },
+        { status: 500 }
+      );
+    }
+    
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Upload failed" },
+      { error: errorMessage },
       { status: 500 }
     );
   }

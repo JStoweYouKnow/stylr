@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getCurrentUserId } from "@/lib/auth-helpers";
 
 export const dynamic = "force-dynamic";
 
@@ -8,12 +9,17 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(request: NextRequest) {
   try {
+    const userId = await getCurrentUserId();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
     const period = searchParams.get("period"); // "weekly" or "monthly"
 
     const whereClause: any = {
-      userId: userId || undefined,
+      userId,
     };
 
     if (period) {
@@ -62,11 +68,26 @@ export async function GET(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
+    const userId = await getCurrentUserId();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
     if (!id) {
       return NextResponse.json({ error: "Capsule ID required" }, { status: 400 });
+    }
+
+    // Verify capsule belongs to user
+    const capsule = await prisma.capsuleWardrobe.findUnique({
+      where: { id: parseInt(id), userId },
+    });
+
+    if (!capsule) {
+      return NextResponse.json({ error: "Capsule not found" }, { status: 404 });
     }
 
     await prisma.capsuleWardrobe.delete({

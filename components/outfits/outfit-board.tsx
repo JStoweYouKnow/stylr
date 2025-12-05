@@ -7,6 +7,7 @@ import { HTML5Backend } from "react-dnd-html5-backend";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import DraggableItem from "./draggable-item";
+import OutfitVisualizer from "@/components/OutfitVisualizer";
 
 interface ClothingItem {
   id: number;
@@ -221,6 +222,17 @@ export default function OutfitBoard() {
               </button>
             </div>
           </div>
+
+          {/* Outfit Visualizer */}
+          {outfitSlots.some((slot) => slot.item !== null) && (
+            <div className="mt-6">
+              <OutfitVisualizer
+                itemIds={outfitSlots
+                  .map((slot) => slot.item?.id)
+                  .filter((id): id is number => id !== undefined)}
+              />
+            </div>
+          )}
         </div>
       </div>
     </DndProvider>

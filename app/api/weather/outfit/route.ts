@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getWeatherBasedOutfitSuggestion } from "@/lib/weather";
 import { prisma } from "@/lib/db";
+import { getCurrentUserId } from "@/lib/auth-helpers";
 
 export const dynamic = "force-dynamic"; // Force dynamic rendering
 
 export async function POST(request: NextRequest) {
   try {
-    const { latitude, longitude, userId } = await request.json();
+    const userId = await getCurrentUserId();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { latitude, longitude } = await request.json();
 
     if (!latitude || !longitude) {
       return NextResponse.json(
@@ -24,7 +31,7 @@ export async function POST(request: NextRequest) {
     // Get clothing items that match the required layers
     const suitableItems = await prisma.clothingItem.findMany({
       where: {
-        userId: userId || undefined,
+        userId,
         layeringCategory: {
           in: weatherSuggestion.requiredLayers,
         },

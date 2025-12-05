@@ -1,23 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getCurrentUserId } from "@/lib/auth-helpers";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = null; // TODO: Get from auth session
+    const userId = await getCurrentUserId();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get("limit") || "10");
 
     // Get all items for user
     const allItems = await prisma.clothingItem.findMany({
-      where: userId ? { userId } : undefined,
+      where: { userId },
     });
 
     // Get wear events grouped by item
     const wearEvents = await prisma.wearEvent.groupBy({
       by: ["clothingItemId"],
-      where: userId ? { userId } : undefined,
+      where: { userId },
       _count: {
         id: true,
       },
@@ -35,7 +41,7 @@ export async function GET(request: NextRequest) {
       const lastWorn = await prisma.wearEvent.findFirst({
         where: {
           clothingItemId: item.id,
-          userId: userId || undefined,
+          userId,
         },
         orderBy: {
           wornOn: "desc",

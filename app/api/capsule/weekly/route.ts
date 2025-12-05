@@ -1,18 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { generateWeeklyCapsule } from "@/lib/capsule-generator";
+import { getCurrentUserId } from "@/lib/auth-helpers";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
+    const userId = await getCurrentUserId();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
-    const { userId, occasionMix } = body;
+    const { occasionMix } = body;
 
     // Fetch user's clothing items
     const items = await prisma.clothingItem.findMany({
       where: {
-        userId: userId || undefined,
+        userId,
       },
     });
 

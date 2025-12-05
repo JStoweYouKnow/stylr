@@ -187,3 +187,8 @@ Your iOS app is fully configured and ready to build. Follow the steps above to:
 
 The app will provide an **exact copy** of your web experience with native iOS integration! 🎉
 
+
+
+
+
+

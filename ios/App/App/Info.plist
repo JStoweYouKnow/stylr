@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>Stylr</string>
+	<string>Stylr</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -20,7 +20,21 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.lifestyle</string>
 	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Stylr needs access to your camera to take photos of clothing items.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Stylr needs permission to save images to your photo library.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Stylr needs access to your photo library to upload clothing items.</string>
+	<key>UIAppFonts</key>
+	<array/>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
@@ -43,21 +57,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>UIViewControllerBasedStatusBarAppearance</key>
-	<true/>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Stylr needs access to your photo library to upload clothing items.</string>
-	<key>NSCameraUsageDescription</key>
-	<string>Stylr needs access to your camera to take photos of clothing items.</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Stylr needs permission to save images to your photo library.</string>
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
-	<key>UIAppFonts</key>
-	<array/>
 	<key>UISupportsDocumentBrowser</key>
 	<false/>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 </dict>
 </plist>

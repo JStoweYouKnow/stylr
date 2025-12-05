@@ -1,22 +1,70 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
+import Button from "@/components/Button";
 
 export default function SettingsPage() {
-  // TODO: Replace with actual user authentication
-  const user = { id: "demo-user" };
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [lastSyncDate, setLastSyncDate] = useState<string | null>(null);
   const [purchaseCount, setPurchaseCount] = useState(0);
+  const [subscription, setSubscription] = useState<any>(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
 
   useEffect(() => {
-    if (user?.id) {
-      checkGmailConnection();
-      fetchPurchaseStats();
+    if (status === "loading") return;
+    if (!session?.user?.id) {
+      router.push("/login");
+      return;
     }
-  }, [user]);
+    checkGmailConnection();
+    fetchPurchaseStats();
+    fetchSubscriptionStatus();
+  }, [session, status, router]);
+
+  const fetchSubscriptionStatus = async () => {
+    if (!session?.user?.email) return;
+
+    try {
+      const response = await fetch('/api/user/subscription');
+      if (response.ok) {
+        const data = await response.json();
+        setSubscription(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch subscription:', error);
+    }
+  };
+
+  const handleManageSubscription = async () => {
+    setSubscriptionLoading(true);
+    const loadingToast = toast.loading("Opening billing portal...");
+
+    try {
+      const response = await fetch('/api/stripe/create-portal', {
+        method: 'POST',
+      });
+
+      const data = await response.json();
+
+      if (data.url) {
+        toast.success("Redirecting...", { id: loadingToast });
+        window.location.href = data.url;
+      } else {
+        toast.error("Failed to open billing portal", { id: loadingToast });
+      }
+    } catch (error) {
+      console.error('Portal error:', error);
+      toast.error("Failed to open billing portal", { id: loadingToast });
+    } finally {
+      setSubscriptionLoading(false);
+    }
+  };
 
   const checkGmailConnection = async () => {
     // Check if user has an active email connection
@@ -25,10 +73,10 @@ export default function SettingsPage() {
   };
 
   const fetchPurchaseStats = async () => {
-    if (!user?.id) return;
+    if (!session?.user?.id) return;
 
     try {
-      const response = await fetch(`/api/purchases?userId=${user.id}&limit=1`);
+      const response = await fetch(`/api/purchases?userId=${session.user.id}&limit=1`);
       const data = await response.json();
       setPurchaseCount(data.count || 0);
     } catch (error) {
@@ -37,7 +85,7 @@ export default function SettingsPage() {
   };
 
   const handleConnectGmail = async () => {
-    if (!user?.id) {
+    if (!session?.user?.id) {
       toast.error("Please log in first");
       return;
     }
@@ -49,7 +97,7 @@ export default function SettingsPage() {
       const response = await fetch("/api/purchases/connect/gmail", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id }),
+        body: JSON.stringify({ userId: session.user.id }),
       });
 
       const data = await response.json();
@@ -70,7 +118,7 @@ export default function SettingsPage() {
   };
 
   const handleScanPurchases = async () => {
-    if (!user?.id) return;
+    if (!session?.user?.id) return;
 
     setIsLoading(true);
     const loadingToast = toast.loading("Scanning emails for purchases...");
@@ -80,7 +128,7 @@ export default function SettingsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: user.id,
+          userId: session.user.id,
           daysBack: 30,
         }),
       });
@@ -108,7 +156,7 @@ export default function SettingsPage() {
   };
 
   const handleDisconnectGmail = async () => {
-    if (!user?.id) return;
+    if (!session?.user?.id) return;
 
     // Using toast for confirmation instead of confirm()
     toast((t) => (
@@ -158,6 +206,76 @@ export default function SettingsPage() {
   return (
     <div className="max-w-4xl mx-auto p-6">
       <h1 className="text-3xl font-bold mb-8">Settings</h1>
+
+      {/* Subscription Section */}
+      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <h2 className="text-xl font-semibold mb-4">💳 Subscription</h2>
+
+        {subscription ? (
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-2xl font-bold capitalize">{subscription.tier || 'Free'} Plan</p>
+                {subscription.status === 'active' && subscription.currentPeriodEnd && (
+                  <p className="text-sm text-gray-600 mt-1">
+                    Renews on {new Date(subscription.currentPeriodEnd).toLocaleDateString()}
+                  </p>
+                )}
+              </div>
+              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                subscription.isActive
+                  ? 'bg-green-100 text-green-800'
+                  : 'bg-yellow-100 text-yellow-800'
+              }`}>
+                {subscription.isActive ? 'Active' : subscription.status}
+              </span>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg p-4 mb-4">
+              <p className="text-sm font-medium text-gray-700 mb-2">Your Limits:</p>
+              <ul className="text-sm text-gray-600 space-y-1">
+                <li>• Max clothing items: {subscription.limits.maxClothingItems === Infinity ? 'Unlimited' : subscription.limits.maxClothingItems}</li>
+                <li>• Daily outfit recommendations: {subscription.limits.maxOutfitsPerDay === Infinity ? 'Unlimited' : subscription.limits.maxOutfitsPerDay}</li>
+                <li>• AI recommendations: {subscription.limits.aiRecommendations ? 'Yes' : 'No'}</li>
+                <li>• Purchase tracking: {subscription.limits.purchaseTracking ? 'Yes' : 'No'}</li>
+                <li>• Capsule wardrobe: {subscription.limits.capsuleWardrobe ? 'Yes' : 'No'}</li>
+              </ul>
+            </div>
+
+            <div className="flex gap-3">
+              {subscription.tier === 'free' ? (
+                <Button
+                  variant="primary"
+                  size="md"
+                  onClick={() => router.push('/pricing')}
+                >
+                  Upgrade Plan
+                </Button>
+              ) : (
+                <Button
+                  variant="secondary"
+                  size="md"
+                  onClick={handleManageSubscription}
+                  isLoading={subscriptionLoading}
+                >
+                  Manage Subscription
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="md"
+                onClick={() => router.push('/pricing')}
+              >
+                View All Plans
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-4">
+            <p className="text-gray-500">Loading subscription...</p>
+          </div>
+        )}
+      </div>
 
       {/* Gmail Integration Section */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-6">
@@ -289,11 +407,26 @@ GOOGLE_REDIRECT_URI="http://localhost:3000/api/purchases/connect/gmail/callback"
           Don't want to connect Gmail? You can manually add purchases.
         </p>
         <button
-          onClick={() => alert("Manual entry form coming soon!")}
+          onClick={() => {
+            toast("Manual purchase entry coming soon!", { icon: "ℹ️" });
+          }}
           className="bg-gray-600 text-white px-6 py-2 rounded-lg hover:bg-gray-700 font-medium transition-colors"
         >
           Add Purchase Manually
         </button>
+      </div>
+
+      {/* Privacy Policy Link */}
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <h2 className="text-xl font-semibold mb-2">📄 Legal</h2>
+        <div className="space-y-2">
+          <a
+            href="/privacy"
+            className="block text-blue-600 hover:text-blue-800 underline"
+          >
+            Privacy Policy
+          </a>
+        </div>
       </div>
     </div>
   );

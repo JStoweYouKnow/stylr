@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getWardrobeAnalytics } from "@/lib/analytics";
+import { getCurrentUserId } from "@/lib/auth-helpers";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = null; // TODO: Get from auth session
+    const userId = await getCurrentUserId();
 
-    const analytics = await getWardrobeAnalytics(userId || undefined);
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const analytics = await getWardrobeAnalytics(userId);
 
     return NextResponse.json(analytics);
   } catch (error) {

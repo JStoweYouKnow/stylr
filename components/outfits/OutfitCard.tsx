@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { exportOutfitAsImage, downloadImage } from "@/lib/outfit-export";
+import OutfitVisualizer from "@/components/OutfitVisualizer";
 
 interface ClothingItem {
   id: number;
@@ -107,6 +108,11 @@ export default function OutfitCard({ outfit, type = "saved", onExport }: OutfitC
         >
           Share
         </button>
+      </div>
+
+      {/* Outfit Visualizer */}
+      <div className="p-4 border-t">
+        <OutfitVisualizer itemIds={outfit.items.map((item) => item.id)} />
       </div>
     </div>
   );

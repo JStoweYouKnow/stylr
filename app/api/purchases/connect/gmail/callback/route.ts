@@ -14,8 +14,10 @@ export async function GET(request: NextRequest) {
     const error = searchParams.get("error");
 
     if (error) {
+      // Extract base URL from request
+      const baseUrl = new URL(request.url).origin;
       return NextResponse.redirect(
-        new URL(`/?error=gmail_auth_denied`, request.url)
+        `${baseUrl}/purchases?error=gmail_auth_denied`
       );
     }
 
@@ -31,14 +33,16 @@ export async function GET(request: NextRequest) {
     // Exchange code for tokens
     await exchangeCodeForTokens(code, userId);
 
-    // Redirect back to app with success message
+    // Redirect back to purchases page with success message
+    const baseUrl = new URL(request.url).origin;
     return NextResponse.redirect(
-      new URL(`/?gmail_connected=true`, request.url)
+      `${baseUrl}/purchases?gmail_connected=true`
     );
   } catch (error) {
     console.error("Gmail OAuth callback error:", error);
+    const baseUrl = new URL(request.url).origin;
     return NextResponse.redirect(
-      new URL(`/?error=gmail_connection_failed`, request.url)
+      `${baseUrl}/purchases?error=gmail_connection_failed`
     );
   }
 }

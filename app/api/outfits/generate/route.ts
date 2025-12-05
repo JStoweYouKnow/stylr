@@ -1,17 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { generateMultipleOutfits } from "@/lib/outfit-generator";
+import { getCurrentUserId } from "@/lib/auth-helpers";
 
 export const dynamic = "force-dynamic"; // Force dynamic rendering
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, occasion, count = 3 } = await request.json();
+    const userId = await getCurrentUserId();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { occasion, count = 3 } = await request.json();
 
     // Fetch user's clothing items
     const items = await prisma.clothingItem.findMany({
       where: {
-        userId: userId || undefined,
+        userId,
       },
     });
 
@@ -37,7 +44,7 @@ export async function POST(request: NextRequest) {
       outfits.map((outfit) =>
         prisma.outfitRecommendation.create({
           data: {
-            userId: userId || undefined,
+            userId,
             items: outfit.items.map((item) => item.id),
             occasion: occasion || "casual",
             generatedBy: "multi-outfit-generator",

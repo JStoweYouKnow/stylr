@@ -160,8 +160,7 @@ export default function ClothingGrid() {
             }}
             secondaryAction={{
               label: "Learn How It Works",
-              href: "#",
-              onClick: () => alert("Tutorial coming soon!"),
+              href: "/help",
             }}
           />
         ) : (

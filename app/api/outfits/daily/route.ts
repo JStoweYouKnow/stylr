@@ -1,19 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { generateOutfitOfTheDay } from "@/lib/outfit-generator";
+import { getCurrentUserId } from "@/lib/auth-helpers";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
+    const userId = await getCurrentUserId();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
     const occasion = searchParams.get("occasion") || "casual";
 
     // Fetch user's clothing items
     const items = await prisma.clothingItem.findMany({
       where: {
-        userId: userId || undefined,
+        userId,
       },
     });
 
@@ -37,7 +43,7 @@ export async function GET(request: NextRequest) {
     // Optionally save as recommendation
     const recommendation = await prisma.outfitRecommendation.create({
       data: {
-        userId: userId || undefined,
+        userId,
         items: outfit.items.map((item) => item.id),
         occasion,
         generatedBy: "outfit-of-the-day",

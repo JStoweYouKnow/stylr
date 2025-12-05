@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getCurrentUserId } from "@/lib/auth-helpers";
 
 export const dynamic = "force-dynamic"; // Force dynamic rendering
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = null; // TODO: Get from auth session
+    const userId = await getCurrentUserId();
 
-    // For now, allow without auth - will be enforced when auth is added
     if (!userId) {
-      return NextResponse.json({ profile: null });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const profile = await prisma.styleProfile.findUnique({
@@ -28,7 +28,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = null; // TODO: Get from auth session
+    const userId = await getCurrentUserId();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const {
       preferredStyles,
       occasionFrequency,
@@ -37,26 +42,8 @@ export async function POST(request: NextRequest) {
       climate,
     } = await request.json();
 
-    // For development: use a temporary user ID if auth not set up
-    // In production, this will require authentication
-    const tempUserId = userId || "temp-user-dev";
-
-    // Check if user exists, create if not
-    let user = await prisma.user.findUnique({
-      where: { id: tempUserId },
-    });
-
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          id: tempUserId,
-          email: `temp-${Date.now()}@example.com`,
-        },
-      });
-    }
-
     const profile = await prisma.styleProfile.upsert({
-      where: { userId: tempUserId },
+      where: { userId },
       update: {
         preferredStyles: preferredStyles || [],
         occasionFrequency: occasionFrequency || {},
@@ -65,7 +52,7 @@ export async function POST(request: NextRequest) {
         climate: climate || null,
       },
       create: {
-        userId: tempUserId,
+        userId,
         preferredStyles: preferredStyles || [],
         occasionFrequency: occasionFrequency || {},
         favoriteColors: favoriteColors || [],
