@@ -1,6 +1,7 @@
 import "./globals.css";
 import { Inter } from "next/font/google";
 import { Providers } from "./providers";
+import LoadLogger from "@/components/LoadLogger";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -23,6 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="apple-mobile-web-app-title" content="Stylr" />
       </head>
       <body className={inter.className}>
+        <LoadLogger />
         <Providers>{children}</Providers>
       </body>
     </html>

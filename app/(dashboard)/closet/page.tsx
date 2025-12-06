@@ -9,6 +9,8 @@ export default function ClosetPage() {
   const { status } = useSession();
 
   useEffect(() => {
+    console.log("ClosetPage mounted, session status:", status);
+    
     // Redirect to login if not authenticated
     if (status === "unauthenticated") {
       console.log("No session found, redirecting to login...");
