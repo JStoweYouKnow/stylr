@@ -66,9 +66,9 @@ export default function LoginPage() {
           console.warn("Session update warning (continuing anyway):", updateError);
         }
 
-        // Force full-page navigation with absolute URL for reliability
+        // Force full-page navigation with relative URL (works for both local and production)
         console.log("Redirecting to closet...");
-        window.location.href = "https://stylr.projcomfort.com/closet";
+        window.location.href = "/closet";
         return; // Prevent any further code execution
       } else {
         console.error("Sign in failed with ok=false");
