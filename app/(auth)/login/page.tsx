@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { signIn, useSession } from "next-auth/react";
 import Link from "next/link";
 import Button from "@/components/Button";
 
@@ -11,7 +10,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
+  const { update: updateSession } = useSession();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -19,14 +18,66 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await signIn("credentials", {
+      console.log("Submitting login form for:", email);
+
+      const result = await signIn("credentials", {
         email,
         password,
-        redirectTo: "/closet",
+        redirect: false,
       });
-      // signIn will redirect on success
+
+      console.log("Sign in result:", result);
+
+      // Handle different result states
+      if (!result) {
+        console.error("No result returned from signIn");
+        setError("Authentication failed. Please try again.");
+        setLoading(false);
+        return;
+      }
+
+      // Check for errors
+      if (result.error) {
+        console.error("Sign in error:", result.error);
+
+        // Map common errors to user-friendly messages
+        if (result.error === "CredentialsSignin") {
+          setError("Unable to sign in. Please check your credentials and try again.");
+        } else if (result.error.includes("Database")) {
+          setError("Database connection error. Please try again in a moment.");
+        } else {
+          setError(result.error);
+        }
+
+        setLoading(false);
+        return;
+      }
+
+      // Check if sign in was successful
+      if (result.ok) {
+        console.log("✅ Sign in successful!");
+
+        // Update session
+        try {
+          console.log("Updating session...");
+          await updateSession();
+          console.log("Session updated");
+        } catch (updateError) {
+          console.warn("Session update warning (continuing anyway):", updateError);
+        }
+
+        // Force full-page navigation with absolute URL for reliability
+        console.log("Redirecting to closet...");
+        window.location.href = "https://stylr.projcomfort.com/closet";
+        return; // Prevent any further code execution
+      } else {
+        console.error("Sign in failed with ok=false");
+        setError("Unable to complete sign in. Please try again.");
+        setLoading(false);
+      }
     } catch (err: any) {
-      setError(err?.message || "Invalid email or password. Please try again.");
+      console.error("Sign in exception:", err);
+      setError(err?.message || "An unexpected error occurred. Please try again.");
       setLoading(false);
     }
   }

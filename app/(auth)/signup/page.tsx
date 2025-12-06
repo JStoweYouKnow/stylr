@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { signIn, useSession } from "next-auth/react";
 import Link from "next/link";
 import Button from "@/components/Button";
 
@@ -12,7 +11,7 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
+  const { update: updateSession } = useSession();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,16 +30,67 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
+      console.log("Submitting signup form for:", email);
+
       // For MVP: sign in will create the user automatically
-      await signIn("credentials", {
+      const result = await signIn("credentials", {
         email,
         password,
-        redirectTo: "/closet",
+        redirect: false,
       });
-      // signIn will redirect on success
+
+      console.log("Sign up result:", result);
+
+      // Handle different result states
+      if (!result) {
+        console.error("No result returned from signIn");
+        setError("Sign up failed. Please try again.");
+        setLoading(false);
+        return;
+      }
+
+      // Check for errors
+      if (result.error) {
+        console.error("Sign up error:", result.error);
+
+        // Map common errors to user-friendly messages
+        if (result.error === "CredentialsSignin") {
+          setError("Unable to create account. Please try again.");
+        } else if (result.error.includes("Database")) {
+          setError("Database connection error. Please try again in a moment.");
+        } else {
+          setError(result.error);
+        }
+
+        setLoading(false);
+        return;
+      }
+
+      // Check if sign up was successful
+      if (result.ok) {
+        console.log("✅ Sign up successful!");
+
+        // Update session
+        try {
+          console.log("Updating session...");
+          await updateSession();
+          console.log("Session updated");
+        } catch (updateError) {
+          console.warn("Session update warning (continuing anyway):", updateError);
+        }
+
+        // Force full-page navigation with absolute URL for reliability
+        console.log("Redirecting to closet...");
+        window.location.href = "https://stylr.projcomfort.com/closet";
+        return; // Prevent any further code execution
+      } else {
+        console.error("Sign up failed with ok=false");
+        setError("Unable to complete sign up. Please try again.");
+        setLoading(false);
+      }
     } catch (err) {
-      setError("Something went wrong. Please try again.");
-    } finally {
+      console.error("Sign up exception:", err);
+      setError("An unexpected error occurred. Please try again.");
       setLoading(false);
     }
   }
