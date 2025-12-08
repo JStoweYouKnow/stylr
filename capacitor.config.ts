@@ -1,32 +1,17 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
-// Load environment variables from .env file
-import { config as loadEnv } from 'dotenv';
-loadEnv();
-
-// Get server URL from environment or use default
-// Set NEXT_PUBLIC_CAPACITOR_SERVER_URL in .env to point to your deployed Vercel app
-// For local development, set CAPACITOR_USE_LOCAL=true in .env
-const serverUrl = process.env.NEXT_PUBLIC_CAPACITOR_SERVER_URL || 'https://stylr.vercel.app';
-
-// Check if we should use localhost (works in both dev and production builds)
-const useLocalServer = process.env.CAPACITOR_USE_LOCAL === 'true';
-
+// PRODUCTION: Always use the deployed server URL for TestFlight/App Store builds
+// For local development testing only: manually change to http://localhost:3002
 const config: CapacitorConfig = {
   appId: 'com.stylr.app',
   appName: 'Stylr',
   webDir: 'out',
-  server: useLocalServer
-    ? {
-        url: 'http://localhost:3002',
-        cleartext: true,
-      }
-    : {
-        // Always load from deployed server for a 1:1 copy of the web app
-        url: serverUrl,
-        androidScheme: 'https',
-        iosScheme: 'https',
-      },
+  server: {
+    // Hardcoded to production - no environment variable dependency
+    url: 'https://stylr.projcomfort.com',
+    androidScheme: 'https',
+    iosScheme: 'https',
+  },
   ios: {
     contentInset: 'automatic',
     scrollEnabled: true,
