@@ -55,13 +55,13 @@ Return ONLY a valid JSON object (no markdown, no code blocks):
   // Determine mime type from URL or response
   const mimeType = imageResponse.headers.get('content-type') || 'image/jpeg';
 
-  // Use configurable model name, default to gemini-1.5-pro (stable for v1beta)
-  const model = process.env.GEMINI_MODEL || 'gemini-1.5-pro';
+  // Use configurable model name, default to gemini-1.5-flash (use v1 API, not v1beta)
+  const model = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
   
   console.log(`Using Gemini model: ${model}`);
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GOOGLE_AI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${process.env.GOOGLE_AI_API_KEY}`,
     {
       method: "POST",
       headers: {
