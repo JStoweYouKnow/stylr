@@ -7,7 +7,7 @@ const config: CapacitorConfig = {
   appName: 'Stylr',
   webDir: 'out',
   server: {
-    // Hardcoded to production - no environment variable dependency
+    // PRODUCTION: Always use deployed server for TestFlight/App Store
     url: 'https://stylr.projcomfort.com',
     androidScheme: 'https',
     iosScheme: 'https',
