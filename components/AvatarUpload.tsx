@@ -43,9 +43,9 @@ export default function AvatarUpload({ userId, onAvatarUpdated }: AvatarUploadPr
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("Image must be less than 10MB");
+    // Validate file size (max 4MB due to Vercel limits)
+    if (file.size > 4 * 1024 * 1024) {
+      toast.error("Image must be less than 4MB");
       e.target.value = "";
       return;
     }
@@ -313,7 +313,7 @@ export default function AvatarUpload({ userId, onAvatarUpdated }: AvatarUploadPr
           <li>Stand in a neutral pose facing the camera</li>
           <li>Wear simple, fitted clothing</li>
           <li>Use a simple background</li>
-          <li>Image should be less than 10MB</li>
+          <li>Image should be less than 4MB</li>
         </ul>
       </div>
     </div>

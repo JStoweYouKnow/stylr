@@ -6,6 +6,7 @@ import { getCurrentUserId } from "@/lib/auth-helpers";
 import { del } from "@vercel/blob";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60; // Allow up to 60 seconds for avatar generation
 
 /**
  * POST /api/user/avatar - Upload photo and generate avatar
@@ -31,10 +32,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "File must be an image" }, { status: 400 });
     }
 
-    // Validate file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
+    // Validate file size (max 4MB to stay within Vercel's limits)
+    if (file.size > 4 * 1024 * 1024) {
       return NextResponse.json(
-        { error: "Image must be less than 10MB" },
+        { error: "Image must be less than 4MB" },
         { status: 400 }
       );
     }

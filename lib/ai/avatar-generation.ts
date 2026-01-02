@@ -103,11 +103,11 @@ export async function validateAvatarImage(imageUrl: string): Promise<{
     const contentLength = response.headers.get("content-length");
     if (contentLength) {
       const size = parseInt(contentLength, 10);
-      const maxSize = 10 * 1024 * 1024; // 10MB
+      const maxSize = 4 * 1024 * 1024; // 4MB (Vercel limit)
       if (size > maxSize) {
         return {
           valid: false,
-          error: "Image is too large (max 10MB)",
+          error: "Image is too large (max 4MB)",
         };
       }
     }

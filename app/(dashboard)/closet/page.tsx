@@ -10,11 +10,11 @@ export default function ClosetPage() {
 
   useEffect(() => {
     console.log("ClosetPage mounted, session status:", status);
-    
+
     // Redirect to login if not authenticated
     if (status === "unauthenticated") {
       console.log("No session found, redirecting to login...");
-      window.location.href = "https://stylr.projcomfort.com/login";
+      window.location.href = "/login"; // Use relative path for both local and production
     }
   }, [status]);
 

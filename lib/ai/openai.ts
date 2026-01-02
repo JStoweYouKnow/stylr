@@ -1,19 +1,47 @@
 import { ClothingAnalysis } from "./types";
 
 export async function analyzeWithOpenAI(imageUrl: string): Promise<ClothingAnalysis> {
-  const prompt = `Analyze this clothing item image and return a JSON object with the following structure:
-{
-  "type": "e.g., shirt, pants, jacket, dress, shoes, etc.",
-  "primaryColor": "main color of the item",
-  "secondaryColor": "secondary color if present, or null",
-  "pattern": "pattern type (solid, striped, plaid, etc.) or null",
-  "fit": "fit style (slim, regular, loose, etc.) or null",
-  "vibe": "style vibe (casual, formal, sporty, etc.)",
-  "notes": "any additional relevant notes about the item",
-  "layeringCategory": "base, mid, outer, or accessory"
-}
+  const prompt = `You are a professional fashion stylist analyzing a clothing item. Study the image carefully and provide detailed analysis.
 
-Be specific and accurate. Return ONLY valid JSON, no markdown formatting.`;
+CLOTHING TYPES (choose the most specific):
+Tops: t-shirt, shirt, blouse, tank top, crop top, sweater, hoodie, sweatshirt, cardigan, vest
+Bottoms: jeans, pants, trousers, shorts, skirt, leggings, joggers, chinos
+Outerwear: jacket, coat, blazer, parka, windbreaker, bomber, denim jacket, leather jacket
+Dresses: dress, maxi dress, midi dress, mini dress, sundress, cocktail dress
+Footwear: sneakers, boots, sandals, heels, flats, loafers, athletic shoes
+Accessories: hat, scarf, belt, bag, sunglasses, jewelry, watch
+Other: swimwear, activewear, underwear, socks
+
+COLORS (be specific):
+Instead of "blue" say "navy blue", "sky blue", "royal blue", etc.
+Instead of "red" say "burgundy", "crimson", "coral", etc.
+
+PATTERNS:
+solid, striped, plaid, checkered, floral, polka dot, geometric, animal print, tie-dye, camo, abstract, graphic
+
+FIT STYLES:
+slim, fitted, regular, relaxed, loose, oversized, tailored, athletic
+
+VIBES:
+casual, formal, business casual, sporty, athletic, streetwear, vintage, boho, minimalist, edgy, preppy, elegant
+
+LAYERING CATEGORIES:
+- base: underwear, t-shirts, tank tops, thin layers worn closest to skin
+- mid: shirts, sweaters, hoodies, most everyday tops and bottoms
+- outer: jackets, coats, outerwear
+- accessory: shoes, bags, hats, jewelry, belts
+
+Return ONLY a valid JSON object (no markdown, no code blocks):
+{
+  "type": "specific clothing type from the list above",
+  "primaryColor": "specific color name",
+  "secondaryColor": "secondary color if present, or null",
+  "pattern": "pattern type or null if solid",
+  "fit": "fit style or null if unclear",
+  "vibe": "primary style vibe",
+  "notes": "brief description including material if visible (cotton, denim, leather, etc.)",
+  "layeringCategory": "base, mid, outer, or accessory"
+}`;
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -51,6 +79,12 @@ Be specific and accurate. Return ONLY valid JSON, no markdown formatting.`;
   }
 
   const data = await response.json();
+
+  // Validate response structure
+  if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+    throw new Error("Invalid response structure from OpenAI API");
+  }
+
   const content = data.choices[0].message.content;
 
   // Extract JSON from response (handle markdown code blocks if present)
@@ -59,6 +93,20 @@ Be specific and accurate. Return ONLY valid JSON, no markdown formatting.`;
     jsonText = jsonText.replace(/^```json\n?/, "").replace(/\n?```$/, "");
   }
 
-  const analysis = JSON.parse(jsonText) as ClothingAnalysis;
-  return analysis;
+  // Remove any remaining markdown
+  jsonText = jsonText.replace(/^```\n?/, "").replace(/\n?```$/, "");
+
+  try {
+    const analysis = JSON.parse(jsonText) as ClothingAnalysis;
+
+    // Validate required fields
+    if (!analysis.type || !analysis.primaryColor || !analysis.vibe) {
+      throw new Error("Missing required fields in analysis");
+    }
+
+    return analysis;
+  } catch (parseError) {
+    console.error("Failed to parse OpenAI response:", jsonText);
+    throw new Error(`Failed to parse AI response: ${parseError instanceof Error ? parseError.message : 'Invalid JSON'}`);
+  }
 }

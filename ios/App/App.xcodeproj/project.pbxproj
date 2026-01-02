@@ -191,26 +191,9 @@
 			files = (
 			);
 			inputPaths = (
-				"${SRCROOT}/Pods/Target Support Files/Pods-App/Pods-App-frameworks.sh",
-				"${BUILT_PRODUCTS_DIR}/Capacitor/Capacitor.framework",
-				"${BUILT_PRODUCTS_DIR}/CapacitorApp/CapacitorApp.framework",
-				"${BUILT_PRODUCTS_DIR}/CapacitorCordova/CapacitorCordova.framework",
-				"${BUILT_PRODUCTS_DIR}/CapacitorHaptics/CapacitorHaptics.framework",
-				"${BUILT_PRODUCTS_DIR}/CapacitorKeyboard/CapacitorKeyboard.framework",
-				"${BUILT_PRODUCTS_DIR}/CapacitorPreferences/CapacitorPreferences.framework",
-				"${BUILT_PRODUCTS_DIR}/CapacitorSplashScreen/CapacitorSplashScreen.framework",
-				"${BUILT_PRODUCTS_DIR}/CapacitorStatusBar/CapacitorStatusBar.framework",
 			);
 			name = "[CP] Embed Pods Frameworks";
 			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/Capacitor.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/CapacitorApp.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/CapacitorCordova.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/CapacitorHaptics.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/CapacitorKeyboard.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/CapacitorPreferences.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/CapacitorSplashScreen.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/CapacitorStatusBar.framework",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;

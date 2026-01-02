@@ -11,8 +11,12 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    console.log("HomePage - session status:", status);
+    console.log("HomePage - session data:", session);
+
     // Wait for session to load
     if (status === "loading") {
+      console.log("HomePage - waiting for session to load...");
       return;
     }
 
@@ -20,7 +24,10 @@ export default function HomePage() {
 
     // Redirect if authenticated
     if (session) {
+      console.log("HomePage - user authenticated, redirecting to /closet");
       router.push("/closet");
+    } else {
+      console.log("HomePage - no session, showing landing page");
     }
   }, [session, status, router]);
 

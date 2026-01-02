@@ -44,3 +44,7 @@ echo "📋 Verifying icon format..."
 file "$ICON_PATH"
 
 
+
+
+
+

@@ -19,17 +19,23 @@ export default function UploadForm() {
     setSuccess(false);
 
     try {
+      console.log("Uploading file:", file.name, file.type, file.size);
+      
       const formData = new FormData();
       formData.append("file", file);
 
+      console.log("Sending request to /api/clothing/upload");
       const res = await fetch("/api/clothing/upload", {
         method: "POST",
         body: formData,
       });
 
+      console.log("Response status:", res.status);
+      
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.error || "Upload failed");
+        console.error("Upload error response:", errorData);
+        throw new Error(errorData.message || errorData.error || "Upload failed");
       }
 
       const data = await res.json();
@@ -46,6 +52,7 @@ export default function UploadForm() {
         window.location.href = "/closet";
       }, 1000);
     } catch (err) {
+      console.error("Upload error caught:", err);
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
@@ -64,7 +71,7 @@ export default function UploadForm() {
           <input
             id="file-input"
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/jpg,image/png,image/webp"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             className="block w-full text-sm text-gray-500
               file:mr-4 file:py-2.5 file:px-4
@@ -74,6 +81,7 @@ export default function UploadForm() {
               file:cursor-pointer
               hover:file:bg-gray-800
               touch-manipulation"
+            capture="environment"
           />
         </div>
 

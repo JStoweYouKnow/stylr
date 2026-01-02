@@ -146,13 +146,13 @@ export function validateImageFile(file: File): {
   valid: boolean;
   error?: string;
 } {
-  const maxSize = 10 * 1024 * 1024; // 10MB
+  const maxSize = 4 * 1024 * 1024; // 4MB (Vercel limit)
   const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
 
   if (file.size > maxSize) {
     return {
       valid: false,
-      error: "Image must be less than 10MB",
+      error: "Image must be less than 4MB",
     };
   }
 
