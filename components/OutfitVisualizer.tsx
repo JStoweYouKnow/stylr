@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Button from "@/components/Button";
 import toast from "react-hot-toast";
 
@@ -60,14 +60,42 @@ export default function OutfitVisualizer({ itemIds, mode = 'ai-generated' }: Out
     }
   };
 
+  const [hasAvatar, setHasAvatar] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [useAvatar, setUseAvatar] = useState(true);
+
+  // Check if user has avatar on mount
+  useEffect(() => {
+    checkUserAvatar();
+  }, []);
+
+  const checkUserAvatar = async () => {
+    try {
+      const response = await fetch('/api/user/avatar');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.avatar?.url) {
+          setHasAvatar(true);
+          setAvatarUrl(data.avatar.url);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to check avatar:', error);
+    }
+  };
+
   const handleVirtualTryOn = async () => {
     if (itemIds.length === 0) {
       toast.error('Please select at least one clothing item');
       return;
     }
 
-    if (!fileInputRef.current?.files?.[0]) {
-      toast.error('Please upload your photo first');
+    // Check if we should use avatar or uploaded photo
+    const shouldUseAvatar = useAvatar && hasAvatar;
+    const hasUploadedPhoto = fileInputRef.current?.files?.[0];
+
+    if (!shouldUseAvatar && !hasUploadedPhoto) {
+      toast.error('Please upload your photo or enable "Use My Avatar"');
       return;
     }
 
@@ -77,7 +105,13 @@ export default function OutfitVisualizer({ itemIds, mode = 'ai-generated' }: Out
     try {
       const formData = new FormData();
       formData.append('itemIds', JSON.stringify(itemIds));
-      formData.append('personImage', fileInputRef.current.files[0]);
+      
+      // Add person image or indicate to use avatar
+      if (shouldUseAvatar) {
+        formData.append('useAvatar', 'true');
+      } else if (hasUploadedPhoto) {
+        formData.append('personImage', fileInputRef.current!.files![0]);
+      }
 
       const response = await fetch('/api/outfits/tryon', {
         method: 'POST',
@@ -182,27 +216,73 @@ export default function OutfitVisualizer({ itemIds, mode = 'ai-generated' }: Out
 
       {/* Virtual Try-On Photo Upload */}
       {selectedMode === 'virtual-tryon' && (
-        <div>
-          <label className="block text-sm font-medium mb-2">
-            Upload Your Photo
-          </label>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleFileSelect}
-            className="block w-full text-sm text-gray-500
-              file:mr-4 file:py-2.5 file:px-4
-              file:rounded-md file:border-0
-              file:text-sm file:font-semibold
-              file:bg-black file:text-white
-              file:cursor-pointer
-              hover:file:bg-gray-800
-              touch-manipulation"
-          />
-          <p className="text-xs text-gray-500 mt-2">
-            For best results, use a full-body photo with good lighting and a simple background.
-          </p>
+        <div className="space-y-4">
+          {/* Avatar Option */}
+          {hasAvatar && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  id="use-avatar"
+                  checked={useAvatar}
+                  onChange={(e) => setUseAvatar(e.target.checked)}
+                  className="mt-1"
+                />
+                <div className="flex-1">
+                  <label htmlFor="use-avatar" className="text-sm font-medium text-green-900 cursor-pointer">
+                    Use My Avatar
+                  </label>
+                  <p className="text-xs text-green-700 mt-1">
+                    Use your saved avatar instead of uploading a new photo
+                  </p>
+                  {avatarUrl && useAvatar && (
+                    <div className="mt-2">
+                      <img
+                        src={avatarUrl}
+                        alt="Your avatar"
+                        className="w-24 h-24 object-cover rounded border"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Photo Upload */}
+          {!useAvatar && (
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Upload Your Photo
+              </label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileSelect}
+                className="block w-full text-sm text-gray-500
+                  file:mr-4 file:py-2.5 file:px-4
+                  file:rounded-md file:border-0
+                  file:text-sm file:font-semibold
+                  file:bg-black file:text-white
+                  file:cursor-pointer
+                  hover:file:bg-gray-800
+                  touch-manipulation"
+              />
+              <p className="text-xs text-gray-500 mt-2">
+                For best results, use a full-body photo with good lighting and a simple background.
+              </p>
+            </div>
+          )}
+
+          {/* No Avatar Message */}
+          {!hasAvatar && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-xs text-blue-900">
+                <strong>Tip:</strong> Create an avatar in Settings to skip uploading photos each time!
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -213,7 +293,7 @@ export default function OutfitVisualizer({ itemIds, mode = 'ai-generated' }: Out
         fullWidth
         onClick={selectedMode === 'ai-generated' ? handleAIGenerate : handleVirtualTryOn}
         isLoading={loading}
-        disabled={itemIds.length === 0 || (selectedMode === 'virtual-tryon' && !fileInputRef.current?.files?.[0])}
+        disabled={itemIds.length === 0 || (selectedMode === 'virtual-tryon' && !useAvatar && !fileInputRef.current?.files?.[0])}
       >
         {loading ? (
           selectedMode === 'ai-generated' ? 'Generating...' : 'Processing Try-On...'

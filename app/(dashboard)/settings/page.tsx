@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import Button from "@/components/Button";
+import AvatarUpload from "@/components/AvatarUpload";
 
 export default function SettingsPage() {
   const { data: session, status } = useSession();
@@ -206,6 +207,11 @@ export default function SettingsPage() {
   return (
     <div className="max-w-4xl mx-auto p-6">
       <h1 className="text-3xl font-bold mb-8">Settings</h1>
+
+      {/* Avatar Section */}
+      <div className="mb-6" id="avatar">
+        <AvatarUpload userId={session?.user?.id} />
+      </div>
 
       {/* Subscription Section */}
       <div className="bg-white rounded-lg shadow-md p-6 mb-6">

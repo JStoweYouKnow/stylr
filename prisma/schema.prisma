@@ -24,6 +24,11 @@ model User {
   subscriptionTier       String?   @default("free") @map("subscription_tier") // free, basic, pro, premium
   currentPeriodEnd       DateTime? @map("current_period_end")
 
+  // Avatar
+  avatarImageUrl    String?   @map("avatar_image_url")
+  avatarBlobPath    String?   @map("avatar_blob_path")
+  avatarGeneratedAt DateTime? @map("avatar_generated_at")
+
   clothingItems     ClothingItem[]
   outfitRecs        OutfitRecommendation[]
   savedOutfits      SavedOutfit[]

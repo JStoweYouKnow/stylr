@@ -4,6 +4,7 @@
  */
 
 import Replicate from 'replicate';
+import { prisma } from '@/lib/db';
 
 export interface VirtualTryOnResult {
   imageUrl: string;
@@ -14,6 +15,10 @@ export interface VirtualTryOnResult {
 /**
  * Virtual Try-On using OOTDiffusion (Open-source, via Replicate)
  * This is the recommended approach for MVP
+ * 
+ * @param personImageUrl - URL to person's photo or avatar
+ * @param garmentImageUrl - URL to garment image
+ * @param options - Try-on options including category and description
  */
 export async function generateVirtualTryOn(
   personImageUrl: string,
@@ -21,6 +26,7 @@ export async function generateVirtualTryOn(
   options?: {
     category?: 'upper_body' | 'lower_body' | 'dresses';
     garmentDescription?: string;
+    useAvatar?: boolean;
   }
 ): Promise<VirtualTryOnResult> {
   const startTime = Date.now();
@@ -137,6 +143,60 @@ export function getGarmentCategory(clothingType: string): 'upper_body' | 'lower_
 
   // Default to upper_body if unsure
   return 'upper_body';
+}
+
+/**
+ * Get user's avatar URL if available
+ */
+export async function getUserAvatar(userId: string): Promise<string | null> {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { avatarImageUrl: true },
+    });
+    return user?.avatarImageUrl || null;
+  } catch (error) {
+    console.error('Failed to get user avatar:', error);
+    return null;
+  }
+}
+
+/**
+ * Generate virtual try-on with optional avatar fallback
+ * If userId is provided and no personImageUrl, will attempt to use saved avatar
+ */
+export async function generateVirtualTryOnWithAvatar(
+  garmentImageUrl: string,
+  options: {
+    personImageUrl?: string;
+    userId?: string;
+    category?: 'upper_body' | 'lower_body' | 'dresses';
+    garmentDescription?: string;
+  }
+): Promise<VirtualTryOnResult> {
+  let personImageUrl = options.personImageUrl;
+
+  // If no person image provided but userId is available, try to use avatar
+  if (!personImageUrl && options.userId) {
+    console.log('No person image provided, checking for saved avatar...');
+    const avatarUrl = await getUserAvatar(options.userId);
+    if (avatarUrl) {
+      console.log('✓ Using saved avatar for virtual try-on');
+      personImageUrl = avatarUrl;
+    } else {
+      throw new Error('No person image or saved avatar available. Please upload a photo or create an avatar first.');
+    }
+  }
+
+  if (!personImageUrl) {
+    throw new Error('Person image URL is required for virtual try-on');
+  }
+
+  return generateVirtualTryOn(personImageUrl, garmentImageUrl, {
+    category: options.category,
+    garmentDescription: options.garmentDescription,
+    useAvatar: !!options.userId && !options.personImageUrl,
+  });
 }
 
 /**

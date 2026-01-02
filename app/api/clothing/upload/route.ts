@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { uploadToBlob } from "@/lib/blob/upload";
 import { analyzeClothingImage } from "@/lib/ai/vision";
 import { generateClothingEmbedding } from "@/lib/ai/embeddings";
+import { normalizeClothingItem } from "@/lib/ai/item-normalization";
 import { prisma } from "@/lib/db";
 import { getCurrentUserId } from "@/lib/auth-helpers";
 import { checkItemLimit } from "@/lib/stripe/subscription";
+import { del } from "@vercel/blob";
 
 export const dynamic = "force-dynamic"; // Force dynamic rendering
 
@@ -73,18 +75,42 @@ export async function POST(request: NextRequest) {
 
     try {
       const timestamp = Date.now();
-      const filename = `${timestamp}-${file.name}`;
-      const blobPath = `clothing/${filename}`;
-      const blob = await uploadToBlob(file, blobPath);
+      const randomId = Math.random().toString(36).substring(2, 15);
+      // Use simple alphanumeric filename only - no temp paths, no special chars
+      const safeFilename = `${timestamp}${randomId}.png`;
+      const blobPath = `clothing/${safeFilename}`;
+      
+      console.log(`[UPLOAD] Attempting upload to: ${blobPath}`);
+      
+      let blob;
+      try {
+        blob = await uploadToBlob(file, blobPath);
+        console.log(`[UPLOAD] ✓ Success: ${blob.url}`);
+      } catch (uploadError) {
+        console.error("[UPLOAD] Blob upload failed:", uploadError);
+        const errorMsg = uploadError instanceof Error ? uploadError.message : String(uploadError);
+        return NextResponse.json(
+          { 
+            error: "Upload failed",
+            message: errorMsg,
+            details: "Failed to upload image to blob storage",
+            path: blobPath
+          },
+          { status: 500 }
+        );
+      }
+
+      // Skip normalization temporarily to isolate upload issue
+      const finalBlob = blob;
 
       await prisma.upload.update({
         where: { id: uploadLog.id },
-        data: { imageUrl: blob.url, status: "analyzed" },
+        data: { imageUrl: finalBlob.url, status: "analyzed" },
       });
 
       let analysis;
       try {
-        analysis = await analyzeClothingImage(blob.url);
+        analysis = await analyzeClothingImage(finalBlob.url);
       } catch (error) {
         console.error("Vision analysis error:", error);
         await prisma.upload.update({
@@ -111,8 +137,8 @@ export async function POST(request: NextRequest) {
       const clothingItem = await prisma.clothingItem.create({
         data: {
           userId,
-          imageUrl: blob.url,
-          blobPath: blob.pathname,
+          imageUrl: finalBlob.url,
+          blobPath: finalBlob.pathname,
           type: analysis.type || null,
           primaryColor: analysis.primaryColor || null,
           secondaryColor: analysis.secondaryColor || null,
