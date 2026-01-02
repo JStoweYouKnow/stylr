@@ -55,7 +55,7 @@ export async function generateImageWithGemini(
   try {
     console.log("Generating image with Gemini 2.5 Flash Image...");
 
-    let contents: string | { text?: string; inlineData?: { mimeType: string; data: string } }[];
+    let contents: string | Array<{ text?: string; inlineData?: { mimeType: string; data: string } }>;
 
     if (inputImageUrl) {
       // Fetch and encode input image
