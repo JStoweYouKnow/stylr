@@ -14,13 +14,13 @@ export interface GeminiImageResult {
  * Initialize Gemini AI client
  */
 function getGeminiClient(): GoogleGenAI {
-  if (!process.env.GOOGLE_AI_API_KEY) {
+  const apiKey = process.env.GOOGLE_AI_API_KEY;
+
+  if (!apiKey) {
     throw new Error("GOOGLE_AI_API_KEY is not configured");
   }
 
-  return new GoogleGenAI({
-    apiKey: process.env.GOOGLE_AI_API_KEY,
-  });
+  return new GoogleGenAI({ apiKey });
 }
 
 /**
@@ -60,26 +60,33 @@ export async function generateImageWithGemini(
     if (inputImageUrl) {
       // Fetch and encode input image
       const { base64, mimeType } = await fetchImageAsBase64(inputImageUrl);
-      
+
+      // According to Gemini API docs, text should come before image
       contents = [
+        {
+          text: prompt,
+        },
         {
           inlineData: {
             mimeType,
             data: base64,
           },
         },
-        {
-          text: prompt,
-        },
       ];
     } else {
       contents = prompt;
     }
 
+    console.log("Calling Gemini API with model: gemini-2.5-flash-image");
+    console.log("Contents type:", typeof contents);
+    console.log("Contents is array:", Array.isArray(contents));
+
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-image",
       contents,
     });
+
+    console.log("Received response from Gemini API");
 
     // Extract image from response
     if (!response.candidates || response.candidates.length === 0) {
@@ -109,6 +116,11 @@ export async function generateImageWithGemini(
     throw new Error("No image data found in response");
   } catch (error) {
     console.error("Gemini image generation error:", error);
+    if (error instanceof Error) {
+      console.error("Error name:", error.name);
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+    }
     throw new Error(
       `Failed to generate image: ${error instanceof Error ? error.message : "Unknown error"}`
     );
