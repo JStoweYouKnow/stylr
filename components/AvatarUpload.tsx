@@ -15,6 +15,7 @@ export default function AvatarUpload({ userId, onAvatarUpdated }: AvatarUploadPr
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [enhanceWithAI, setEnhanceWithAI] = useState(false); // AI enhancement toggle
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Fetch current avatar on mount
@@ -66,7 +67,7 @@ export default function AvatarUpload({ userId, onAvatarUpdated }: AvatarUploadPr
     };
     reader.readAsDataURL(file);
 
-    toast.success("Photo selected! Click 'Generate Avatar' to create your avatar.");
+    toast.success("Photo selected! Click 'Upload Avatar' to save.");
   };
 
   const handleGenerateAvatar = async () => {
@@ -76,11 +77,15 @@ export default function AvatarUpload({ userId, onAvatarUpdated }: AvatarUploadPr
     }
 
     setUploading(true);
-    const loadingToast = toast.loading("Generating your avatar... This may take 30-60 seconds");
+    const loadingMessage = enhanceWithAI
+      ? "Generating AI-enhanced avatar... This may take 30-60 seconds"
+      : "Uploading your avatar...";
+    const loadingToast = toast.loading(loadingMessage);
 
     try {
       const formData = new FormData();
       formData.append("file", selectedFile);
+      formData.append("enhance", enhanceWithAI.toString());
       formData.append("style", "realistic");
       formData.append("background", "white");
 
@@ -104,7 +109,10 @@ export default function AvatarUpload({ userId, onAvatarUpdated }: AvatarUploadPr
           fileInputRef.current.value = "";
         }
         
-        toast.success("Avatar generated successfully!", { id: loadingToast });
+        const successMessage = enhanceWithAI
+          ? "AI-enhanced avatar created successfully!"
+          : "Avatar uploaded successfully!";
+        toast.success(successMessage, { id: loadingToast });
         
         if (onAvatarUpdated) {
           onAvatarUpdated(data.avatar.url);
@@ -172,7 +180,7 @@ export default function AvatarUpload({ userId, onAvatarUpdated }: AvatarUploadPr
       <div>
         <h3 className="text-xl font-semibold mb-2">Your Avatar</h3>
         <p className="text-sm text-gray-600">
-          Upload a photo to create a realistic avatar for virtual try-ons
+          Upload a photo to use for virtual try-ons
         </p>
       </div>
 
@@ -219,8 +227,26 @@ export default function AvatarUpload({ userId, onAvatarUpdated }: AvatarUploadPr
           </div>
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <p className="text-sm text-blue-900">
-              <strong>Ready to generate:</strong> Your avatar will be created from this photo.
-              For best results, use a full-body photo with good lighting.
+              <strong>Ready to upload:</strong> Your photo will be saved as your avatar.
+            </p>
+          </div>
+
+          {/* AI Enhancement Option (disabled until billing enabled) */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <label className="flex items-center gap-2 cursor-not-allowed opacity-50">
+              <input
+                type="checkbox"
+                checked={enhanceWithAI}
+                onChange={(e) => setEnhanceWithAI(e.target.checked)}
+                disabled={true}
+                className="rounded"
+              />
+              <span className="text-sm text-gray-700">
+                <strong>Enhance with AI</strong> (Coming soon - requires billing)
+              </span>
+            </label>
+            <p className="text-xs text-gray-600 mt-2 ml-6">
+              AI enhancement creates a polished, professional avatar optimized for virtual try-ons.
             </p>
           </div>
         </div>
@@ -289,7 +315,9 @@ export default function AvatarUpload({ userId, onAvatarUpdated }: AvatarUploadPr
               isLoading={uploading}
               disabled={!selectedFile}
             >
-              {uploading ? "Generating..." : "Generate Avatar"}
+              {uploading
+                ? (enhanceWithAI ? "Generating..." : "Uploading...")
+                : (enhanceWithAI ? "Generate AI Avatar" : "Upload Avatar")}
             </Button>
             <Button
               variant="secondary"
@@ -312,9 +340,12 @@ export default function AvatarUpload({ userId, onAvatarUpdated }: AvatarUploadPr
           <li>Use a full-body photo with good lighting</li>
           <li>Stand in a neutral pose facing the camera</li>
           <li>Wear simple, fitted clothing</li>
-          <li>Use a simple background</li>
+          <li>Clear background works best</li>
           <li>Image should be less than 4MB</li>
         </ul>
+        <p className="text-xs text-gray-500 mt-3 italic">
+          Your photo will be used directly for virtual try-ons. AI enhancement coming soon!
+        </p>
       </div>
     </div>
   );

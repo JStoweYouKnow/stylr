@@ -9,7 +9,10 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60; // Allow up to 60 seconds for avatar generation
 
 /**
- * POST /api/user/avatar - Upload photo and generate avatar
+ * POST /api/user/avatar - Upload photo (optionally generate avatar with AI)
+ *
+ * By default, saves the photo directly without AI processing (free, instant)
+ * Set enhance=true to use AI generation (requires billing)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -21,6 +24,7 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const file = formData.get("file") as File;
+    const enhance = formData.get("enhance") === "true"; // Optional AI enhancement
     const style = (formData.get("style") as string) || "realistic";
     const background = (formData.get("background") as string) || "white";
 
@@ -40,62 +44,93 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("Uploading user photo for avatar generation...");
-
-    // Upload original photo to blob storage temporarily
     const timestamp = Date.now();
-    const filename = `${timestamp}-${file.name}`;
-    const tempBlobPath = `avatars/temp/${filename}`;
-    const tempBlob = await uploadToBlob(file, tempBlobPath);
+    let avatarBlob;
 
-    console.log("Photo uploaded, generating avatar...");
+    if (enhance) {
+      // AI Enhancement Mode: Generate avatar using Gemini
+      console.log("Uploading user photo for AI avatar generation...");
 
-    // Validate image is suitable for avatar generation
-    const validation = await validateAvatarImage(tempBlob.url);
-    if (!validation.valid) {
-      return NextResponse.json(
-        { error: validation.error || "Invalid image" },
-        { status: 400 }
-      );
-    }
+      // Upload original photo to blob storage temporarily
+      const filename = `${timestamp}-${file.name}`;
+      const tempBlobPath = `avatars/temp/${filename}`;
+      const tempBlob = await uploadToBlob(file, tempBlobPath);
 
-    // Generate avatar using Gemini 2.5 Flash Image
-    let avatarResult;
-    try {
-      avatarResult = await generateAvatarFromPhoto(tempBlob.url, {
-        style: style as "realistic" | "professional" | "casual",
-        background: background as "white" | "neutral" | "studio",
+      console.log("Photo uploaded, generating avatar with AI...");
+
+      // Validate image is suitable for avatar generation
+      const validation = await validateAvatarImage(tempBlob.url);
+      if (!validation.valid) {
+        // Clean up temp file
+        try {
+          await del(tempBlob.url);
+        } catch (delError) {
+          console.error("Failed to delete temp file:", delError);
+        }
+        return NextResponse.json(
+          { error: validation.error || "Invalid image" },
+          { status: 400 }
+        );
+      }
+
+      // Generate avatar using Gemini 2.5 Flash Image
+      let avatarResult;
+      try {
+        avatarResult = await generateAvatarFromPhoto(tempBlob.url, {
+          style: style as "realistic" | "professional" | "casual",
+          background: background as "white" | "neutral" | "studio",
+        });
+      } catch (error) {
+        console.error("Avatar generation error:", error);
+        // Clean up temp file
+        try {
+          await del(tempBlob.url);
+        } catch (delError) {
+          console.error("Failed to delete temp file:", delError);
+        }
+        return NextResponse.json(
+          {
+            error: "Failed to generate avatar",
+            message: error instanceof Error ? error.message : "Unknown error",
+          },
+          { status: 500 }
+        );
+      }
+
+      // Sanitize filename for blob storage
+      const safeName = file.name ? file.name.replace(/[^a-zA-Z0-9._-]/g, "-") : "avatar.png";
+      const avatarFilename = `avatar-${userId}-${timestamp}-${safeName.replace(/\.[^/.]+$/, ".png")}`;
+      const avatarBlobData = new Blob([new Uint8Array(avatarResult.imageData)], { type: avatarResult.mimeType });
+      const avatarFile = new File([avatarBlobData], avatarFilename, {
+        type: avatarResult.mimeType,
       });
-    } catch (error) {
-      console.error("Avatar generation error:", error);
+
+      // Upload avatar to blob storage
+      const avatarBlobPath = `avatars/${userId}/${avatarFilename}`;
+      avatarBlob = await uploadToBlob(avatarFile, avatarBlobPath);
+
       // Clean up temp file
       try {
         await del(tempBlob.url);
       } catch (delError) {
         console.error("Failed to delete temp file:", delError);
       }
-      return NextResponse.json(
-        {
-          error: "Failed to generate avatar",
-          message: error instanceof Error ? error.message : "Unknown error",
-        },
-        { status: 500 }
-      );
+
+      console.log("AI-enhanced avatar uploaded to blob storage");
+    } else {
+      // Direct Upload Mode: Save photo as-is (no AI processing)
+      console.log("Uploading user photo directly (no AI enhancement)...");
+
+      // Sanitize filename for blob storage
+      const safeName = file.name ? file.name.replace(/[^a-zA-Z0-9._-]/g, "-") : "avatar.jpg";
+      const avatarFilename = `avatar-${userId}-${timestamp}-${safeName}`;
+
+      // Upload directly to permanent location
+      const avatarBlobPath = `avatars/${userId}/${avatarFilename}`;
+      avatarBlob = await uploadToBlob(file, avatarBlobPath);
+
+      console.log("Avatar photo uploaded directly to blob storage");
     }
-
-    // Sanitize filename for blob storage
-    const safeName = file.name ? file.name.replace(/[^a-zA-Z0-9._-]/g, "-") : "avatar.png";
-    const avatarFilename = `avatar-${userId}-${timestamp}-${safeName.replace(/\.[^/.]+$/, ".png")}`;
-    const avatarBlobData = new Blob([new Uint8Array(avatarResult.imageData)], { type: avatarResult.mimeType });
-    const avatarFile = new File([avatarBlobData], avatarFilename, {
-      type: avatarResult.mimeType,
-    });
-
-    // Upload avatar to blob storage
-    const avatarBlobPath = `avatars/${userId}/${avatarFilename}`;
-    const avatarBlob = await uploadToBlob(avatarFile, avatarBlobPath);
-
-    console.log("Avatar uploaded to blob storage");
 
     // Delete old avatar if exists
     const user = await prisma.user.findUnique({
@@ -110,13 +145,6 @@ export async function POST(request: NextRequest) {
       } catch (delError) {
         console.error("Failed to delete old avatar:", delError);
       }
-    }
-
-    // Delete temp file
-    try {
-      await del(tempBlob.url);
-    } catch (delError) {
-      console.error("Failed to delete temp file:", delError);
     }
 
     // Update user record with avatar
@@ -134,10 +162,11 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    console.log("✓ Avatar generation complete");
+    console.log(`✓ Avatar ${enhance ? 'generation' : 'upload'} complete`);
 
     return NextResponse.json({
       success: true,
+      enhanced: enhance,
       avatar: {
         url: updatedUser.avatarImageUrl,
         generatedAt: updatedUser.avatarGeneratedAt,
