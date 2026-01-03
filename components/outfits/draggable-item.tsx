@@ -30,6 +30,7 @@ export default function DraggableItem({ item }: DraggableItemProps) {
       className={`cursor-move border rounded-lg overflow-hidden bg-white transition-opacity ${
         isDragging ? "opacity-50" : "opacity-100"
       }`}
+      style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
     >
       <div className="aspect-square relative bg-gray-100">
         <Image

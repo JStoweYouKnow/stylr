@@ -274,6 +274,7 @@ function OutfitSlot({
       className={`border-2 border-dashed rounded-lg p-4 min-h-[200px] transition-colors ${
         isOver ? "border-blue-500 bg-blue-50" : "border-gray-300 bg-white"
       }`}
+      style={{ touchAction: 'none' }}
     >
       <div className="flex justify-between items-center mb-2">
         <h4 className="text-sm font-semibold">{categoryLabels[slot.category]}</h4>
