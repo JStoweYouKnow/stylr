@@ -76,30 +76,40 @@ export async function generateVirtualTryOn(
 
 /**
  * Try on multiple garments in sequence
+ * Filters out accessories automatically
  */
 export async function tryOnMultipleItems(
   personImageUrl: string,
   garments: Array<{
     imageUrl: string;
-    category: 'upper_body' | 'lower_body' | 'dresses';
+    category: 'upper_body' | 'lower_body' | 'dresses' | null;
+    type?: string;
   }>
 ): Promise<VirtualTryOnResult[]> {
   const results: VirtualTryOnResult[] = [];
 
+  // Filter out accessories (null category)
+  const tryOnableGarments = garments.filter(g => g.category !== null);
+
+  if (tryOnableGarments.length === 0) {
+    console.warn('No try-onable items found, all items are accessories');
+    return results;
+  }
+
   // Try on items sequentially (could be parallelized for different categories)
-  for (const garment of garments) {
+  for (const garment of tryOnableGarments) {
     try {
       const result = await generateVirtualTryOn(
         personImageUrl,
         garment.imageUrl,
-        { category: garment.category }
+        { category: garment.category! } // Safe to assert since we filtered
       );
       results.push(result);
 
       // Use the result as the new base for the next item
       personImageUrl = result.imageUrl;
     } catch (error) {
-      console.error(`Failed to try on ${garment.category}:`, error);
+      console.error(`Failed to try on ${garment.type || garment.category}:`, error);
       // Continue with other items even if one fails
     }
   }
@@ -109,9 +119,36 @@ export async function tryOnMultipleItems(
 
 /**
  * Determine garment category from clothing type
+ * Returns null for accessories (hats, bags, etc.) that cannot be tried on
  */
-export function getGarmentCategory(clothingType: string): 'upper_body' | 'lower_body' | 'dresses' {
+export function getGarmentCategory(clothingType: string | null): 'upper_body' | 'lower_body' | 'dresses' | null {
+  if (!clothingType) {
+    return 'upper_body'; // Default fallback
+  }
+
   const type = clothingType.toLowerCase();
+
+  // Check for accessories first - these cannot be tried on with OOTDiffusion
+  if (
+    type.includes('hat') ||
+    type.includes('cap') ||
+    type.includes('beanie') ||
+    type.includes('fedora') ||
+    type.includes('snapback') ||
+    type.includes('beret') ||
+    type.includes('bag') ||
+    type.includes('backpack') ||
+    type.includes('purse') ||
+    type.includes('belt') ||
+    type.includes('sunglasses') ||
+    type.includes('jewelry') ||
+    type.includes('watch') ||
+    type.includes('scarf') ||
+    type === 'accessory' ||
+    type.includes('accessory')
+  ) {
+    return null; // Accessories cannot be tried on
+  }
 
   if (type.includes('dress') || type.includes('jumpsuit')) {
     return 'dresses';
@@ -125,7 +162,8 @@ export function getGarmentCategory(clothingType: string): 'upper_body' | 'lower_
     type.includes('jacket') ||
     type.includes('coat') ||
     type.includes('hoodie') ||
-    type.includes('cardigan')
+    type.includes('cardigan') ||
+    type.includes('vest')
   ) {
     return 'upper_body';
   }
@@ -136,7 +174,9 @@ export function getGarmentCategory(clothingType: string): 'upper_body' | 'lower_
     type.includes('shorts') ||
     type.includes('skirt') ||
     type.includes('leggings') ||
-    type.includes('trousers')
+    type.includes('trousers') ||
+    type.includes('joggers') ||
+    type.includes('chinos')
   ) {
     return 'lower_body';
   }

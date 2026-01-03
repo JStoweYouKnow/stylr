@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
       }, { status: 503 });
     }
 
-    // Categorize items and try them on
+    // Categorize items and separate try-onable items from accessories
     const garments = items.map(item => ({
       id: item.id,
       imageUrl: item.imageUrl,
@@ -122,18 +122,34 @@ export async function POST(req: NextRequest) {
       type: item.type,
     }));
 
-    console.log('Trying on garments:', garments.map(g => ({ type: g.type, category: g.category })));
+    // Separate try-onable items from accessories
+    const tryOnableItems = garments.filter(g => g.category !== null);
+    const accessories = garments.filter(g => g.category === null);
+
+    console.log('Trying on garments:', tryOnableItems.map(g => ({ type: g.type, category: g.category })));
+    if (accessories.length > 0) {
+      console.log('Skipping accessories (cannot be tried on):', accessories.map(a => a.type));
+    }
+
+    // If no try-onable items, return error
+    if (tryOnableItems.length === 0) {
+      return NextResponse.json({
+        error: 'No try-onable items found',
+        message: 'Accessories like hats, bags, and jewelry cannot be tried on with virtual try-on. Please select clothing items (tops, bottoms, dresses).',
+        skippedItems: accessories.map(a => ({ id: a.id, type: a.type })),
+      }, { status: 400 });
+    }
 
     // Try on items sequentially (each result becomes input for next)
     let currentPersonImage = personImageUrl;
     const results = [];
 
-    for (const garment of garments) {
+    for (const garment of tryOnableItems) {
       try {
         const result = await generateVirtualTryOn(
           currentPersonImage,
           garment.imageUrl,
-          { category: garment.category }
+          { category: garment.category! } // Safe to assert non-null since we filtered
         );
 
         results.push({
@@ -163,6 +179,12 @@ export async function POST(req: NextRequest) {
       stepResults: results,
       totalProcessingTime: results.reduce((sum, r) => sum + r.processingTime, 0),
       itemsCount: items.length,
+      triedOnCount: tryOnableItems.length,
+      skippedAccessories: accessories.length > 0 ? accessories.map(a => ({
+        id: a.id,
+        type: a.type,
+        reason: 'Accessories cannot be tried on with virtual try-on',
+      })) : [],
     });
   } catch (error) {
     console.error('Virtual try-on error:', error);
