@@ -13,7 +13,6 @@ export default function Sidebar() {
     { href: "/closet", label: "Closet" },
     { href: "/upload", label: "Upload" },
     { href: "/outfits", label: "Outfits" },
-    { href: "/outfits/create", label: "Create Outfit" },
     { href: "/recommendations", label: "Recommendations" },
     { href: "/capsule", label: "Capsule Builder" },
     { href: "/purchases", label: "Purchases" },

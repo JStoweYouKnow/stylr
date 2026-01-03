@@ -1,9 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamicImport from "next/dynamic";
 import OutfitCard from "@/components/outfits/OutfitCard";
-import Link from "next/link";
 import Button from "@/components/Button";
+import { toast } from "react-hot-toast";
+
+// Dynamically import OutfitBoard with SSR disabled - React DnD requires client-side only
+const OutfitBoard = dynamicImport(() => import("@/components/outfits/outfit-board"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center min-h-[400px]">
+      <div className="text-gray-500">Loading outfit builder...</div>
+    </div>
+  ),
+});
 
 interface ClothingItem {
   id: number;
@@ -19,9 +30,12 @@ interface Outfit {
   items: ClothingItem[];
 }
 
+type Tab = "outfits" | "create";
+
 export default function OutfitsPage() {
   const [outfits, setOutfits] = useState<Outfit[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<Tab>("outfits");
 
   useEffect(() => {
     fetchOutfits();
@@ -40,52 +54,77 @@ export default function OutfitsPage() {
     }
   }
 
-  if (loading) {
-    return (
-      <div>
-        <h2 className="text-3xl font-semibold mb-6">My Outfits</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="border rounded-lg p-6 animate-pulse">
-              <div className="h-6 bg-gray-200 rounded mb-4"></div>
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                {[1, 2, 3, 4].map((j) => (
-                  <div key={j} className="aspect-square bg-gray-200 rounded"></div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+  function handleSaveSuccess() {
+    toast.success("Outfit saved successfully!");
+    setActiveTab("outfits");
+    fetchOutfits();
   }
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-3xl font-semibold">My Outfits</h2>
-        <Link href="/outfits/create">
-          <Button variant="primary" size="md">
-            Create New Outfit
-          </Button>
-        </Link>
+      <h2 className="text-3xl font-semibold mb-6">Outfits</h2>
+
+      {/* Tab Switcher */}
+      <div className="flex gap-2 mb-6 border-b">
+        <button
+          onClick={() => setActiveTab("outfits")}
+          className={`px-4 py-2 font-medium transition-colors ${
+            activeTab === "outfits"
+              ? "text-black border-b-2 border-black"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          My Outfits
+        </button>
+        <button
+          onClick={() => setActiveTab("create")}
+          className={`px-4 py-2 font-medium transition-colors ${
+            activeTab === "create"
+              ? "text-black border-b-2 border-black"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          Create New
+        </button>
       </div>
 
-      {outfits.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed">
-          <p className="text-gray-600 mb-4">You haven't created any outfits yet.</p>
-          <Link href="/outfits/create">
-            <Button variant="primary" size="md">
-              Create Your First Outfit
-            </Button>
-          </Link>
-        </div>
+      {/* Tab Content */}
+      {activeTab === "outfits" ? (
+        <>
+          {loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="border rounded-lg p-6 animate-pulse">
+                  <div className="h-6 bg-gray-200 rounded mb-4"></div>
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    {[1, 2, 3, 4].map((j) => (
+                      <div key={j} className="aspect-square bg-gray-200 rounded"></div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : outfits.length === 0 ? (
+            <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed">
+              <p className="text-gray-600 mb-4">You haven't created any outfits yet.</p>
+              <Button
+                variant="primary"
+                size="md"
+                onClick={() => setActiveTab("create")}
+              >
+                Create Your First Outfit
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {outfits.map((outfit) => (
+                <OutfitCard key={outfit.id} outfit={outfit} />
+              ))}
+            </div>
+          )}
+        </>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {outfits.map((outfit) => (
-            <OutfitCard key={outfit.id} outfit={outfit} />
-          ))}
-        </div>
+        <OutfitBoard onSaveSuccess={handleSaveSuccess} />
       )}
     </div>
   );

@@ -27,7 +27,11 @@ interface OutfitSlot {
 let globalHoveredSlot: string | null = null;
 let globalTouchPosition: { x: number; y: number } | null = null;
 
-export default function OutfitBoard() {
+interface OutfitBoardProps {
+  onSaveSuccess?: () => void;
+}
+
+export default function OutfitBoard({ onSaveSuccess }: OutfitBoardProps = {}) {
   const [wardrobeItems, setWardrobeItems] = useState<ClothingItem[]>([]);
   const [outfitSlots, setOutfitSlots] = useState<OutfitSlot[]>([
     { category: "base", item: null },
@@ -171,7 +175,6 @@ export default function OutfitBoard() {
 
       if (!res.ok) throw new Error("Failed to save");
 
-      alert("Outfit saved successfully!");
       setOutfitName("");
       setOutfitSlots([
         { category: "base", item: null },
@@ -181,6 +184,13 @@ export default function OutfitBoard() {
       ]);
       setHistory([]);
       setHistoryIndex(-1);
+      
+      // Call success callback if provided
+      if (onSaveSuccess) {
+        onSaveSuccess();
+      } else {
+        alert("Outfit saved successfully!");
+      }
     } catch (error) {
       console.error("Error saving outfit:", error);
       alert("Failed to save outfit. Please try again.");
