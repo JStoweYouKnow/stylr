@@ -27,16 +27,15 @@ export default function DraggableItem({ item }: DraggableItemProps) {
   return (
     <div
       ref={dragRef}
-      className={`cursor-move border rounded-lg overflow-hidden bg-white transition-all ${
-        isDragging ? "opacity-50 scale-95 shadow-lg z-50" : "opacity-100"
+      className={`cursor-move border rounded-lg overflow-hidden bg-white transition-opacity ${
+        isDragging ? "opacity-50" : "opacity-100"
       }`}
-      style={{ 
-        touchAction: 'none', 
-        userSelect: 'none', 
+      style={{
+        touchAction: 'none',
+        userSelect: 'none',
         WebkitUserSelect: 'none',
-        WebkitTouchCallout: 'none', // Prevent iOS callout menu
-        WebkitTapHighlightColor: 'transparent', // Remove tap highlight
-        position: isDragging ? 'fixed' : 'relative', // Fixed position when dragging for better mobile handling
+        WebkitTouchCallout: 'none',
+        WebkitTapHighlightColor: 'transparent',
       }}
     >
       <div className="aspect-square relative bg-gray-100">

@@ -211,19 +211,11 @@ function OutfitBoardContent({ onSaveSuccess }: OutfitBoardProps) {
   }
 
   return (
-    <>
-      {/* Scrollable container for mobile - allows scrolling while dragging */}
-      <div 
-        className="h-screen overflow-y-auto overflow-x-hidden -mx-4 px-4"
-        style={{ 
-          WebkitOverflowScrolling: 'touch', // Smooth iOS scrolling
-        }}
-      >
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 py-4 pb-20">
-        {/* Wardrobe Sidebar */}
-        <div className="lg:col-span-1">
-          <h3 className="text-lg font-semibold mb-4">Your Wardrobe</h3>
-          <div className="space-y-2 max-h-[600px] overflow-y-auto">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pb-20">
+      {/* Wardrobe Sidebar */}
+      <div className="lg:col-span-1 order-2 lg:order-1">
+        <h3 className="text-lg font-semibold mb-4 sticky top-0 bg-white z-20 py-2">Your Wardrobe</h3>
+        <div className="space-y-3">
             {wardrobeItems.length === 0 ? (
               <p className="text-gray-500 text-sm">No items in wardrobe</p>
             ) : (
@@ -232,10 +224,10 @@ function OutfitBoardContent({ onSaveSuccess }: OutfitBoardProps) {
               ))
             )}
           </div>
-        </div>
+      </div>
 
-        {/* Outfit Board */}
-        <div className="lg:col-span-2">
+      {/* Outfit Board */}
+      <div className="lg:col-span-2 order-1 lg:order-2">
           <div className="bg-gray-50 rounded-lg p-6">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">Outfit Builder</h3>
@@ -305,10 +297,8 @@ function OutfitBoardContent({ onSaveSuccess }: OutfitBoardProps) {
               />
             </div>
           )}
-        </div>
       </div>
-      </div>
-    </>
+    </div>
   );
 }
 
