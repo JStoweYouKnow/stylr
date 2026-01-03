@@ -211,23 +211,112 @@ function OutfitBoardContent({ onSaveSuccess }: OutfitBoardProps) {
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pb-20">
-      {/* Wardrobe Sidebar */}
-      <div className="lg:col-span-1 order-2 lg:order-1">
-        <h3 className="text-lg font-semibold mb-4 sticky top-0 bg-white z-20 py-2">Your Wardrobe</h3>
-        <div className="space-y-3">
+    <div className="space-y-6 pb-20">
+      {/* Outfit Board - Always on top on mobile */}
+      <div className="lg:hidden">
+        <div className="bg-gray-50 rounded-lg p-4">
+          <h3 className="text-lg font-semibold mb-4">Outfit Builder</h3>
+
+          {/* Outfit Slots - 2x2 grid on mobile */}
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            {outfitSlots.map((slot) => (
+              <OutfitSlot
+                key={slot.category}
+                slot={slot}
+                onDrop={handleDrop}
+                onRemove={removeItem}
+                isGloballyHovered={hoveredSlot === slot.category}
+              />
+            ))}
+          </div>
+
+          {/* Mobile Actions */}
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={undo}
+              disabled={historyIndex <= 0}
+              className="px-3 py-1.5 text-sm border rounded disabled:opacity-50 flex-1"
+            >
+              Undo
+            </button>
+            <button
+              onClick={redo}
+              disabled={historyIndex >= history.length - 1}
+              className="px-3 py-1.5 text-sm border rounded disabled:opacity-50 flex-1"
+            >
+              Redo
+            </button>
+            <button
+              onClick={clearOutfit}
+              className="px-3 py-1.5 text-sm border rounded flex-1"
+            >
+              Clear
+            </button>
+          </div>
+
+          {/* Mobile Save */}
+          <div className="space-y-3">
+            <input
+              type="text"
+              placeholder="Outfit name (optional)"
+              value={outfitName}
+              onChange={(e) => setOutfitName(e.target.value)}
+              className="w-full px-4 py-2 border rounded-md"
+            />
+            <button
+              onClick={saveOutfit}
+              disabled={saving}
+              className="w-full px-6 py-3 bg-black text-white rounded-md hover:bg-gray-800 disabled:opacity-50"
+            >
+              {saving ? "Saving..." : "Save Outfit"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Wardrobe - Horizontal scroll on mobile, sidebar on desktop */}
+      <div>
+        <h3 className="text-lg font-semibold mb-3 px-1">Your Wardrobe - Swipe to browse</h3>
+
+        {/* Mobile: Horizontal scroll */}
+        <div className="lg:hidden">
+          <div
+            className="flex gap-3 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide"
+            style={{
+              WebkitOverflowScrolling: 'touch',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+            }}
+          >
             {wardrobeItems.length === 0 ? (
-              <p className="text-gray-500 text-sm">No items in wardrobe</p>
+              <p className="text-gray-500 text-sm px-1">No items in wardrobe</p>
             ) : (
               wardrobeItems.map((item) => (
-                <DraggableItem key={item.id} item={item} />
+                <div key={item.id} className="flex-shrink-0 w-[280px] snap-center">
+                  <DraggableItem item={item} />
+                </div>
               ))
             )}
           </div>
-      </div>
+        </div>
 
-      {/* Outfit Board */}
-      <div className="lg:col-span-2 order-1 lg:order-2">
+        {/* Desktop: Grid layout */}
+        <div className="hidden lg:grid lg:grid-cols-3 gap-6">
+          {/* Desktop Wardrobe */}
+          <div className="lg:col-span-1">
+            <div className="space-y-3">
+              {wardrobeItems.length === 0 ? (
+                <p className="text-gray-500 text-sm">No items in wardrobe</p>
+              ) : (
+                wardrobeItems.map((item) => (
+                  <DraggableItem key={item.id} item={item} />
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Desktop Outfit Board */}
+          <div className="lg:col-span-2">
           <div className="bg-gray-50 rounded-lg p-6">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">Outfit Builder</h3>
@@ -287,7 +376,7 @@ function OutfitBoardContent({ onSaveSuccess }: OutfitBoardProps) {
             </div>
           </div>
 
-          {/* Outfit Visualizer */}
+          {/* Desktop Outfit Visualizer */}
           {outfitSlots.some((slot) => slot.item !== null) && (
             <div className="mt-6">
               <OutfitVisualizer
@@ -297,7 +386,20 @@ function OutfitBoardContent({ onSaveSuccess }: OutfitBoardProps) {
               />
             </div>
           )}
+        </div>
       </div>
+      </div>
+
+      {/* Mobile Outfit Visualizer - shown at bottom */}
+      {outfitSlots.some((slot) => slot.item !== null) && (
+        <div className="lg:hidden">
+          <OutfitVisualizer
+            itemIds={outfitSlots
+              .map((slot) => slot.item?.id)
+              .filter((id): id is number => id !== undefined)}
+          />
+        </div>
+      )}
     </div>
   );
 }
