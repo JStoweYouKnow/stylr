@@ -1,5 +1,8 @@
 import OutfitBoard from "@/components/outfits/outfit-board";
 
+// Force dynamic rendering - this page uses React DnD which requires client-side context
+export const dynamic = 'force-dynamic';
+
 export default function CreateOutfitPage() {
   return (
     <div>
