@@ -1,3 +1,5 @@
+"use client";
+
 import dynamicImport from "next/dynamic";
 
 // Dynamically import OutfitBoard with SSR disabled - React DnD requires client-side only
@@ -9,9 +11,6 @@ const OutfitBoard = dynamicImport(() => import("@/components/outfits/outfit-boar
     </div>
   ),
 });
-
-// Force dynamic rendering - this page uses React DnD which requires client-side context
-export const dynamic = 'force-dynamic';
 
 export default function CreateOutfitPage() {
   return (
