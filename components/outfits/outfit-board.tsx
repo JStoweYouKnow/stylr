@@ -31,7 +31,8 @@ interface OutfitBoardProps {
   onSaveSuccess?: () => void;
 }
 
-export default function OutfitBoard({ onSaveSuccess }: OutfitBoardProps = {}) {
+// Inner component that uses DnD hooks - must be inside DndProvider
+function OutfitBoardContent({ onSaveSuccess }: OutfitBoardProps) {
   const [wardrobeItems, setWardrobeItems] = useState<ClothingItem[]>([]);
   const [outfitSlots, setOutfitSlots] = useState<OutfitSlot[]>([
     { category: "base", item: null },
@@ -45,7 +46,7 @@ export default function OutfitBoard({ onSaveSuccess }: OutfitBoardProps = {}) {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [hoveredSlot, setHoveredSlot] = useState<string | null>(null);
 
-  // Track global touch position when dragging
+  // Track global touch position when dragging - now inside DndProvider context
   const isDragging = useDragLayer((monitor) => monitor.isDragging());
 
   useEffect(() => {
@@ -210,7 +211,7 @@ export default function OutfitBoard({ onSaveSuccess }: OutfitBoardProps = {}) {
   }
 
   return (
-    <DndProvider options={HTML5toTouch}>
+    <>
       {/* Scrollable container for mobile - allows scrolling while dragging */}
       <div 
         className="h-screen overflow-y-auto overflow-x-hidden -mx-4 px-4"
@@ -307,6 +308,15 @@ export default function OutfitBoard({ onSaveSuccess }: OutfitBoardProps = {}) {
         </div>
       </div>
       </div>
+    </>
+  );
+}
+
+// Outer component that provides DndProvider context
+export default function OutfitBoard({ onSaveSuccess }: OutfitBoardProps = {}) {
+  return (
+    <DndProvider options={HTML5toTouch}>
+      <OutfitBoardContent onSaveSuccess={onSaveSuccess} />
     </DndProvider>
   );
 }
