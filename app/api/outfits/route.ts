@@ -13,10 +13,35 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const outfits = await prisma.savedOutfit.findMany({
+    const savedOutfits = await prisma.savedOutfit.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
     });
+
+    // Populate each outfit with full clothing item details
+    const outfits = await Promise.all(
+      savedOutfits.map(async (outfit) => {
+        const items = await prisma.clothingItem.findMany({
+          where: {
+            id: { in: outfit.items },
+            userId, // Ensure items belong to the user
+          },
+          select: {
+            id: true,
+            imageUrl: true,
+            type: true,
+            primaryColor: true,
+          },
+        });
+
+        return {
+          id: outfit.id,
+          name: outfit.name,
+          createdAt: outfit.createdAt,
+          items,
+        };
+      })
+    );
 
     return NextResponse.json({ outfits });
   } catch (error) {
