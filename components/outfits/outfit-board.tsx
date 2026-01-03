@@ -4,10 +4,33 @@ import { useState, useEffect } from "react";
 import type { Ref } from "react";
 import { DndProvider, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
+import { TouchBackend } from "react-dnd-touch-backend";
+import { MultiBackend, TouchTransition, MouseTransition } from "react-dnd-multi-backend";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import DraggableItem from "./draggable-item";
 import OutfitVisualizer from "@/components/OutfitVisualizer";
+
+// Configure multi-backend for both desktop and mobile support
+const HTML5toTouch = {
+  backends: [
+    {
+      id: 'html5',
+      backend: HTML5Backend,
+      transition: MouseTransition,
+    },
+    {
+      id: 'touch',
+      backend: TouchBackend,
+      options: {
+        enableMouseEvents: true,
+        delayTouchStart: 200, // 200ms long-press to start dragging on mobile
+      },
+      preview: true,
+      transition: TouchTransition,
+    },
+  ],
+};
 
 interface ClothingItem {
   id: number;
@@ -147,7 +170,7 @@ export default function OutfitBoard() {
   }
 
   return (
-    <DndProvider backend={HTML5Backend}>
+    <DndProvider backend={MultiBackend} options={HTML5toTouch}>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Wardrobe Sidebar */}
         <div className="lg:col-span-1">
