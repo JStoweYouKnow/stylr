@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
 
     const formData = await req.formData();
     const itemIds = JSON.parse(formData.get('itemIds') as string);
+    const useAvatar = formData.get('useAvatar') === 'true';
     const personImage = formData.get('personImage') as File | null;
 
     if (!itemIds || !Array.isArray(itemIds) || itemIds.length === 0) {
@@ -28,27 +29,48 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!personImage) {
-      return NextResponse.json(
-        { error: 'Person image is required for virtual try-on' },
-        { status: 400 }
-      );
-    }
+    let personImageUrl: string;
 
-    // Upload person image to blob storage
-    const personImageBuffer = await personImage.arrayBuffer();
-    const personBlob = await put(
-      `tryon/person-${userId}-${Date.now()}.jpg`,
-      personImageBuffer,
-      {
-        access: 'public',
-        contentType: personImage.type,
+    if (useAvatar) {
+      // Use saved avatar
+      console.log('Using saved avatar for virtual try-on');
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { avatarImageUrl: true },
+      });
+
+      if (!user?.avatarImageUrl) {
+        return NextResponse.json(
+          { error: 'No avatar found. Please upload an avatar in Settings first.' },
+          { status: 400 }
+        );
       }
-    );
 
-    const personImageUrl = personBlob.url;
+      personImageUrl = user.avatarImageUrl;
+      console.log('Using avatar:', personImageUrl);
+    } else {
+      // Upload person image
+      if (!personImage) {
+        return NextResponse.json(
+          { error: 'Person image is required for virtual try-on' },
+          { status: 400 }
+        );
+      }
 
-    console.log('Person image uploaded:', personImageUrl);
+      const personImageBuffer = await personImage.arrayBuffer();
+      const personBlob = await put(
+        `tryon/person-${userId}-${Date.now()}.jpg`,
+        personImageBuffer,
+        {
+          access: 'public',
+          contentType: personImage.type,
+        }
+      );
+
+      personImageUrl = personBlob.url;
+      console.log('Person image uploaded:', personImageUrl);
+    }
 
     // Fetch clothing items
     const items = await prisma.clothingItem.findMany({
