@@ -27,13 +27,26 @@ export async function generateAvatarFromPhoto(
   console.log("Background:", background);
 
   try {
+    console.log("Calling generateImageWithGemini...");
     const result = await generateImageWithGemini(prompt, userImageUrl);
-    console.log("✓ Avatar generated successfully");
+    
+    if (!result || !result.imageData) {
+      throw new Error("Avatar generation returned empty result");
+    }
+    
+    console.log(`✓ Avatar generated successfully (${result.imageData.length} bytes, ${result.mimeType})`);
     return result;
   } catch (error) {
     console.error("Avatar generation failed:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("Error details:", {
+      message: errorMessage,
+      imageUrl: userImageUrl,
+      style,
+      background,
+    });
     throw new Error(
-      `Failed to generate avatar: ${error instanceof Error ? error.message : "Unknown error"}`
+      `Failed to generate avatar: ${errorMessage}. Please ensure GOOGLE_AI_API_KEY is configured and the Gemini 2.5 Flash Image model is available.`
     );
   }
 }
@@ -61,18 +74,19 @@ function buildAvatarPrompt(
 
   return `${styleDescriptions[style]} ${backgroundDescriptions[background]}.
 
-Requirements:
-- Maintain the person's facial features, skin tone, hair, and body proportions EXACTLY as shown
+CRITICAL REQUIREMENTS:
+- Maintain the person's facial features, skin tone, hair color, hair style, and body proportions EXACTLY as shown in the input image
 - Create a neutral, front-facing pose suitable for virtual clothing try-ons
-- Full body shot from head to toe
-- Natural, even lighting
+- Full body shot from head to toe (must show complete person)
+- Natural, even lighting across the entire image
 - Clean, professional appearance
-- The person should be in a neutral standing position
-- Preserve all unique characteristics of the person
-- High quality, sharp details
-- Remove any existing clothing patterns or logos if present, replace with neutral clothing
+- The person should be in a neutral standing position with arms at sides
+- Preserve all unique characteristics of the person (face shape, eye color, hair, etc.)
+- High quality, sharp details, no blurriness
+- Remove any existing clothing patterns, logos, or text if present, replace with plain neutral-colored clothing (white or gray)
+- Ensure the output is a complete, usable image file
 
-The avatar should look like a professional fashion model photo of this exact person, ready for virtual try-on applications.`;
+The avatar should look like a professional fashion model photo of this exact person, ready for virtual try-on applications. Output must be a valid image file.`;
 }
 
 /**

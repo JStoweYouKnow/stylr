@@ -9,8 +9,10 @@ Bottoms: jeans, pants, trousers, shorts, skirt, leggings, joggers, chinos
 Outerwear: jacket, coat, blazer, parka, windbreaker, bomber, denim jacket, leather jacket
 Dresses: dress, maxi dress, midi dress, mini dress, sundress, cocktail dress
 Footwear: sneakers, boots, sandals, heels, flats, loafers, athletic shoes
-Accessories: hat, scarf, belt, bag, sunglasses, jewelry, watch
+Accessories: hat, baseball cap, beanie, bucket hat, fedora, snapback, trucker hat, beret, sun hat, winter hat, scarf, belt, bag, sunglasses, jewelry, watch
 Other: swimwear, activewear, underwear, socks
+
+IMPORTANT: If you see ANY type of hat (baseball cap, beanie, bucket hat, fedora, snapback, etc.), you MUST classify it as "hat" with layeringCategory "accessory". Do not confuse hats with other items.
 
 COLORS (be specific):
 Instead of "blue" say "navy blue", "sky blue", "royal blue", etc.
