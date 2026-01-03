@@ -28,7 +28,8 @@ export async function exportOutfitAsImage(
     scale: 2,
     logging: false,
     useCORS: true,
-    allowTaint: false,
+    allowTaint: true, // Allow tainted canvas for mobile compatibility
+    imageTimeout: 15000, // 15 second timeout for loading images
   });
 
   return canvas.toDataURL(`image/${format}`, quality);

@@ -66,13 +66,13 @@ export default function OutfitCard({ outfit, type = "saved", onExport }: OutfitC
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
           {outfit.items.map((item) => (
-            <div key={item.id} className="relative aspect-square rounded-lg overflow-hidden border">
-              <Image
+            <div key={item.id} className="relative aspect-square rounded-lg overflow-hidden border bg-gray-100">
+              {/* Use img instead of Next/Image for html2canvas CORS compatibility */}
+              <img
                 src={item.imageUrl}
                 alt={item.type || "Clothing item"}
-                fill
-                className="object-cover"
-                unoptimized
+                crossOrigin="anonymous"
+                className="w-full h-full object-cover"
               />
               <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-2">
                 <p className="font-medium">{item.type || "Item"}</p>
