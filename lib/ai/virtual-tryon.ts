@@ -13,9 +13,9 @@ export interface VirtualTryOnResult {
 }
 
 /**
- * Virtual Try-On using OOTDiffusion (Open-source, via Replicate)
- * This is the recommended approach for MVP
- * 
+ * Virtual Try-On using IDM-VTON (ECCV 2024, via Replicate)
+ * Supports upper body, lower body, and dresses
+ *
  * @param personImageUrl - URL to person's photo or avatar
  * @param garmentImageUrl - URL to garment image
  * @param options - Try-on options including category and description
@@ -40,19 +40,19 @@ export async function generateVirtualTryOn(
   });
 
   try {
-    console.log('Starting virtual try-on with OOTDiffusion...');
+    console.log('Starting virtual try-on with IDM-VTON...');
 
-    // Using OOTDiffusion model (open-source virtual try-on)
-    // Note: This model only supports upper body garments
+    // Using IDM-VTON model (ECCV 2024 - supports upper, lower, and dresses)
     const output = await replicate.run(
-      "viktorfa/oot_diffusion:9f8fa4956970dde99689af7488157a30aa152e23953526a605df1d77598343d7",
+      "cuuupid/idm-vton:0513734a452173b8173e907e3a59d19a36266e55b48528559432bd21c7d7e985",
       {
         input: {
-          model_image: personImageUrl,
-          garment_image: garmentImageUrl,
-          steps: 20,
-          guidance_scale: 2.0,
-          seed: 0,
+          human_img: personImageUrl,
+          garm_img: garmentImageUrl,
+          category: options?.category || 'upper_body',
+          garment_des: `A ${options?.category?.replace('_', ' ')} garment`,
+          steps: 30,
+          seed: 42,
         }
       }
     );
@@ -120,10 +120,10 @@ export async function tryOnMultipleItems(
 
 /**
  * Determine garment category from clothing type or layering category
- * Returns null for items that cannot be tried on
+ * Returns null for accessories that cannot be tried on
  *
- * IMPORTANT: Current OOTDiffusion model ONLY supports upper body garments (tops, jackets)
- * Lower body garments and dresses are NOT supported and will return null
+ * IDM-VTON supports: upper_body, lower_body, and dresses
+ * Does NOT support: shoes, bags, hats, jewelry, and other accessories
  */
 export function getGarmentCategory(
   clothingType: string | null,
@@ -135,9 +135,12 @@ export function getGarmentCategory(
     if (layer === 'top' || layer === 'jacket') {
       return 'upper_body';
     }
-    // OOTDiffusion does NOT support lower body or accessories
-    if (layer === 'bottom' || layer === 'shoes' || layer === 'accessories') {
-      return null; // Cannot be tried on
+    if (layer === 'bottom') {
+      return 'lower_body';
+    }
+    // Accessories and shoes cannot be tried on
+    if (layer === 'shoes' || layer === 'accessories') {
+      return null;
     }
   }
 
@@ -148,12 +151,8 @@ export function getGarmentCategory(
 
   const type = clothingType.toLowerCase();
 
-  // Check for items that CANNOT be tried on with OOTDiffusion:
-  // 1. Accessories (hats, bags, shoes, jewelry, etc.)
-  // 2. Lower body garments (pants, skirts, etc.) - NOT SUPPORTED by current model
-  // 3. Dresses - NOT SUPPORTED by current model
+  // Accessories that CANNOT be tried on with IDM-VTON
   if (
-    // Accessories
     type.includes('hat') ||
     type.includes('cap') ||
     type.includes('beanie') ||
@@ -176,24 +175,17 @@ export function getGarmentCategory(
     type.includes('flats') ||
     type === 'accessory' ||
     type === 'accessories' ||
-    type.includes('accessory') ||
-    // Lower body (NOT SUPPORTED)
-    type.includes('pants') ||
-    type.includes('jeans') ||
-    type.includes('shorts') ||
-    type.includes('skirt') ||
-    type.includes('leggings') ||
-    type.includes('trousers') ||
-    type.includes('joggers') ||
-    type.includes('chinos') ||
-    // Dresses (NOT SUPPORTED)
-    type.includes('dress') ||
-    type.includes('jumpsuit')
+    type.includes('accessory')
   ) {
-    return null; // Cannot be tried on with current model
+    return null; // Accessories cannot be tried on
   }
 
-  // Only upper body garments are supported
+  // Dresses and jumpsuits
+  if (type.includes('dress') || type.includes('jumpsuit')) {
+    return 'dresses';
+  }
+
+  // Upper body garments
   if (
     type.includes('shirt') ||
     type.includes('blouse') ||
@@ -210,8 +202,22 @@ export function getGarmentCategory(
     return 'upper_body';
   }
 
-  // Default to null if unsure (safer than trying unsupported garments)
-  return null;
+  // Lower body garments
+  if (
+    type.includes('pants') ||
+    type.includes('jeans') ||
+    type.includes('shorts') ||
+    type.includes('skirt') ||
+    type.includes('leggings') ||
+    type.includes('trousers') ||
+    type.includes('joggers') ||
+    type.includes('chinos')
+  ) {
+    return 'lower_body';
+  }
+
+  // Default to upper_body if unsure
+  return 'upper_body';
 }
 
 /**

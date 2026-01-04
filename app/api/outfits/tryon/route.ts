@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
     if (tryOnableItems.length === 0) {
       return NextResponse.json({
         error: 'No try-onable items found',
-        message: 'Virtual try-on currently only supports upper body garments (shirts, jackets, sweaters, etc.). Pants, dresses, shoes, and accessories are not supported.',
+        message: 'Virtual try-on supports tops, bottoms, and dresses. Accessories like shoes, bags, hats, and jewelry cannot be tried on.',
         skippedItems: accessories.map(a => ({ id: a.id, type: a.type })),
       }, { status: 400 });
     }
@@ -187,7 +187,7 @@ export async function POST(req: NextRequest) {
       skippedAccessories: accessories.length > 0 ? accessories.map(a => ({
         id: a.id,
         type: a.type,
-        reason: 'Only upper body garments (tops, jackets) are supported. Lower body items, dresses, and accessories cannot be tried on.',
+        reason: 'Accessories (shoes, bags, hats, jewelry) cannot be tried on. Only clothing items (tops, bottoms, dresses) are supported.',
       })) : [],
     });
   } catch (error) {
