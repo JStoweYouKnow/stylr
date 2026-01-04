@@ -19,7 +19,7 @@ export async function generateOutfitVisualizationPrompt(
   }
 ): Promise<string> {
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || '');
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-002' });
 
   const outfitDescription = outfitItems
     .map(item => {
@@ -77,7 +77,7 @@ export async function analyzeOutfitCompatibility(
   warnings: string[];
 }> {
   const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || '');
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-002' });
 
   const outfitDescription = JSON.stringify(outfitItems, null, 2);
 
