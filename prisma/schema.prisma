@@ -51,6 +51,12 @@ model ClothingItem {
   blobPath  String?  @map("blob_path")
   embedding Float[] @map("embedding") @db.DoublePrecision @default([])
 
+  // Product identification
+  storefrontUrl  String?  @map("storefront_url")
+  productImageUrl String? @map("product_image_url")
+  originalImageUrl String? @map("original_image_url")
+  brand          String?
+
   // AI metadata
   type          String?
   primaryColor  String?  @map("primary_color")
@@ -59,7 +65,7 @@ model ClothingItem {
   fit           String?
   vibe          String?
   notes         String?
-  layeringCategory String? @map("layering_category")
+  layeringCategory String? @map("layering_category") // top, bottom, jacket, shoes, accessories
 
   tags          String[]
 
@@ -71,6 +77,7 @@ model ClothingItem {
   @@index([type], name: "idx_clothing_type")
   @@index([primaryColor], name: "idx_clothing_color")
   @@index([tags], type: Gin, name: "idx_tags_gin")
+  @@index([brand], name: "idx_brand")
   @@map("clothing_items")
 }
 

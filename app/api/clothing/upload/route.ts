@@ -7,6 +7,8 @@ import { prisma } from "@/lib/db";
 import { getCurrentUserId } from "@/lib/auth-helpers";
 import { checkItemLimit } from "@/lib/stripe/subscription";
 import { del } from "@vercel/blob";
+import { searchProductWithFallback } from "@/lib/product-search";
+import { extractProductImage } from "@/lib/product-image-extractor";
 
 export const dynamic = "force-dynamic"; // Force dynamic rendering
 
@@ -134,11 +136,52 @@ export async function POST(request: NextRequest) {
 
       const embedding = generateClothingEmbedding(analysis);
 
+      // Product search and image extraction (non-blocking)
+      let productImageUrl: string | null = null;
+      let storefrontUrl: string | null = null;
+      let brand: string | null = analysis.brand || null;
+
+      try {
+        // Search for product online
+        const searchResult = await searchProductWithFallback({
+          brand: analysis.brand ?? undefined,
+          productName: analysis.productName ?? undefined,
+          type: analysis.type ?? undefined,
+          color: analysis.primaryColor ?? undefined,
+          features: analysis.features || [],
+        });
+
+        if (searchResult && searchResult.storefrontUrl) {
+          storefrontUrl = searchResult.storefrontUrl;
+          console.log(`Found product storefront: ${storefrontUrl}`);
+
+          // Extract product image from storefront
+          const extractedImage = await extractProductImage(searchResult.storefrontUrl, true);
+          if (extractedImage) {
+            // Use blob URL if available, otherwise use direct image URL
+            productImageUrl = extractedImage.blobUrl || extractedImage.imageUrl;
+            console.log(`Extracted product image: ${productImageUrl}`);
+          }
+        }
+      } catch (error) {
+        // Don't fail the upload if product search fails
+        console.error("Product search/extraction failed (non-critical):", error);
+      }
+
+      // Determine which image to use as primary
+      // Prefer product image if available, otherwise use user's uploaded image
+      const primaryImageUrl = productImageUrl || finalBlob.url;
+      const originalImageUrl = productImageUrl ? finalBlob.url : null; // Only store if we have product image
+
       const clothingItem = await prisma.clothingItem.create({
         data: {
           userId,
-          imageUrl: finalBlob.url,
+          imageUrl: primaryImageUrl,
           blobPath: finalBlob.pathname,
+          originalImageUrl: originalImageUrl,
+          productImageUrl: productImageUrl,
+          storefrontUrl: storefrontUrl,
+          brand: brand,
           type: analysis.type || null,
           primaryColor: analysis.primaryColor || null,
           secondaryColor: analysis.secondaryColor || null,

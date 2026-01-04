@@ -13,15 +13,12 @@ export default function Sidebar() {
     { href: "/closet", label: "Closet" },
     { href: "/upload", label: "Upload" },
     { href: "/outfits", label: "Outfits" },
+    { href: "/outfits/create", label: "Create Outfit" },
     { href: "/recommendations", label: "Recommendations" },
-    { href: "/capsule", label: "Capsule Builder" },
     { href: "/purchases", label: "Purchases" },
     { href: "/analytics", label: "Analytics" },
     { href: "/wear-tracking", label: "Wear Tracking" },
     { href: "/style-quiz", label: "Style Quiz" },
-    { href: "/pricing", label: "Upgrade" },
-    { href: "/help", label: "Help & Tutorial" },
-    { href: "/privacy", label: "Privacy Policy" },
     { href: "/settings", label: "Settings" },
   ];
 

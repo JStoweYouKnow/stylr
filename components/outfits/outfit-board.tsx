@@ -19,7 +19,7 @@ interface ClothingItem {
 }
 
 interface OutfitSlot {
-  category: "base" | "mid" | "outer" | "accessory";
+  category: "top" | "bottom" | "jacket" | "shoes" | "accessories";
   item: ClothingItem | null;
 }
 
@@ -35,10 +35,11 @@ interface OutfitBoardProps {
 function OutfitBoardContent({ onSaveSuccess }: OutfitBoardProps) {
   const [wardrobeItems, setWardrobeItems] = useState<ClothingItem[]>([]);
   const [outfitSlots, setOutfitSlots] = useState<OutfitSlot[]>([
-    { category: "base", item: null },
-    { category: "mid", item: null },
-    { category: "outer", item: null },
-    { category: "accessory", item: null },
+    { category: "top", item: null },
+    { category: "bottom", item: null },
+    { category: "jacket", item: null },
+    { category: "shoes", item: null },
+    { category: "accessories", item: null },
   ]);
   const [outfitName, setOutfitName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -110,7 +111,7 @@ function OutfitBoardContent({ onSaveSuccess }: OutfitBoardProps) {
     setHistoryIndex(newHistory.length - 1);
   }
 
-  function handleDrop(category: "base" | "mid" | "outer" | "accessory", itemId: number) {
+  function handleDrop(category: "top" | "bottom" | "jacket" | "shoes" | "accessories", itemId: number) {
     const item = wardrobeItems.find((i) => i.id === itemId);
     if (!item) return;
 
@@ -178,10 +179,11 @@ function OutfitBoardContent({ onSaveSuccess }: OutfitBoardProps) {
 
       setOutfitName("");
       setOutfitSlots([
-        { category: "base", item: null },
-        { category: "mid", item: null },
-        { category: "outer", item: null },
-        { category: "accessory", item: null },
+        { category: "top", item: null },
+        { category: "bottom", item: null },
+        { category: "jacket", item: null },
+        { category: "shoes", item: null },
+        { category: "accessories", item: null },
       ]);
       setHistory([]);
       setHistoryIndex(-1);
@@ -203,10 +205,11 @@ function OutfitBoardContent({ onSaveSuccess }: OutfitBoardProps) {
   function clearOutfit() {
     saveToHistory();
     setOutfitSlots([
-      { category: "base", item: null },
-      { category: "mid", item: null },
-      { category: "outer", item: null },
-      { category: "accessory", item: null },
+      { category: "top", item: null },
+      { category: "bottom", item: null },
+      { category: "jacket", item: null },
+      { category: "shoes", item: null },
+      { category: "accessories", item: null },
     ]);
   }
 
@@ -420,7 +423,7 @@ function OutfitSlot({
   isGloballyHovered = false,
 }: {
   slot: OutfitSlot;
-  onDrop: (category: OutfitSlot["category"], itemId: number) => void;
+  onDrop: (category: "top" | "bottom" | "jacket" | "shoes" | "accessories", itemId: number) => void;
   onRemove: (category: string) => void;
   isGloballyHovered?: boolean;
 }) {
@@ -459,10 +462,11 @@ function OutfitSlot({
   };
 
   const categoryLabels = {
-    base: "Base Layer",
-    mid: "Mid Layer",
-    outer: "Outer Layer",
-    accessory: "Accessory",
+    top: "Top",
+    bottom: "Bottom",
+    jacket: "Jacket",
+    shoes: "Shoes",
+    accessories: "Accessories",
   };
 
   // Combine monitor state with global hover state for iOS

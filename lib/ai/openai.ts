@@ -27,11 +27,22 @@ slim, fitted, regular, relaxed, loose, oversized, tailored, athletic
 VIBES:
 casual, formal, business casual, sporty, athletic, streetwear, vintage, boho, minimalist, edgy, preppy, elegant
 
-LAYERING CATEGORIES:
-- base: underwear, t-shirts, tank tops, thin layers worn closest to skin
-- mid: shirts, sweaters, hoodies, most everyday tops and bottoms
-- outer: jackets, coats, outerwear
-- accessory: shoes, bags, hats, jewelry, belts
+LAYERING CATEGORIES (choose one):
+- top: shirts, t-shirts, blouses, sweaters, hoodies, cardigans, tank tops, crop tops
+- bottom: pants, jeans, trousers, shorts, skirts, leggings, joggers, chinos
+- jacket: jackets, coats, blazers, parkas, windbreakers, bombers, outerwear
+- shoes: sneakers, boots, sandals, heels, flats, loafers, athletic shoes, all footwear
+- accessories: hats, bags, belts, scarves, sunglasses, jewelry, watches
+
+BRAND DETECTION:
+- Look for brand names, logos, tags, labels visible in the image
+- Common brands: Nike, Adidas, Zara, H&M, Uniqlo, Gap, Levi's, etc.
+- If brand is visible, include it. If not, return null.
+
+PRODUCT IDENTIFICATION:
+- Identify key visual features: distinctive patterns, logos, design elements, color combinations
+- Note any product names, model numbers, or SKUs if visible
+- These features will help match the product online
 
 Return ONLY a valid JSON object (no markdown, no code blocks):
 {
@@ -42,7 +53,10 @@ Return ONLY a valid JSON object (no markdown, no code blocks):
   "fit": "fit style or null if unclear",
   "vibe": "primary style vibe",
   "notes": "brief description including material if visible (cotton, denim, leather, etc.)",
-  "layeringCategory": "base, mid, outer, or accessory"
+  "layeringCategory": "top, bottom, jacket, shoes, or accessories",
+  "brand": "brand name if visible, or null",
+  "productName": "product name or model if visible, or null",
+  "features": ["array of key visual features for product matching, e.g., 'distinctive logo', 'unique pattern', 'color combination']"
 }`;
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {

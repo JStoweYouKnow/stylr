@@ -72,40 +72,6 @@ export async function POST(req: NextRequest) {
       console.log('Person image uploaded:', personImageUrl);
     }
 
-    // Fetch clothing items
-    const items = await prisma.clothingItem.findMany({
-      where: {
-        id: { in: itemIds },
-        userId,
-      },
-      select: {
-        id: true,
-        type: true,
-        imageUrl: true,
-      },
-      orderBy: {
-        type: 'asc', // Order items appropriately for layering
-      },
-    });
-
-    if (items.length === 0) {
-      return NextResponse.json(
-        { error: 'No items found' },
-        { status: 404 }
-      );
-    }
-
-    // Validate all garment images are accessible
-    for (const item of items) {
-      const isValid = await validateImageUrl(item.imageUrl);
-      if (!isValid) {
-        return NextResponse.json(
-          { error: `Image for ${item.type} (ID: ${item.id}) is not accessible` },
-          { status: 400 }
-        );
-      }
-    }
-
     // Check if Replicate API token is configured
     if (!process.env.REPLICATE_API_TOKEN) {
       return NextResponse.json({
@@ -114,11 +80,49 @@ export async function POST(req: NextRequest) {
       }, { status: 503 });
     }
 
+    // Fetch full item details including layeringCategory and productImageUrl
+    const fullItems = await prisma.clothingItem.findMany({
+      where: {
+        id: { in: itemIds },
+        userId,
+      },
+      select: {
+        id: true,
+        type: true,
+        imageUrl: true,
+        productImageUrl: true,
+        layeringCategory: true,
+      },
+      orderBy: {
+        type: 'asc', // Order items appropriately for layering
+      },
+    });
+
+    if (fullItems.length === 0) {
+      return NextResponse.json(
+        { error: 'No items found' },
+        { status: 404 }
+      );
+    }
+
+    // Validate all garment images are accessible (use product image if available)
+    for (const item of fullItems) {
+      const imageUrl = item.productImageUrl || item.imageUrl;
+      const isValid = await validateImageUrl(imageUrl);
+      if (!isValid) {
+        return NextResponse.json(
+          { error: `Image for ${item.type} (ID: ${item.id}) is not accessible` },
+          { status: 400 }
+        );
+      }
+    }
+
     // Categorize items and separate try-onable items from accessories
-    const garments = items.map(item => ({
+    // Use productImageUrl if available, fallback to imageUrl
+    const garments = fullItems.map(item => ({
       id: item.id,
-      imageUrl: item.imageUrl,
-      category: getGarmentCategory(item.type || 'shirt'),
+      imageUrl: item.productImageUrl || item.imageUrl, // Prefer product image
+      category: getGarmentCategory(item.type || 'shirt', item.layeringCategory),
       type: item.type,
     }));
 
@@ -178,12 +182,12 @@ export async function POST(req: NextRequest) {
       finalImageUrl: finalResult.resultUrl,
       stepResults: results,
       totalProcessingTime: results.reduce((sum, r) => sum + r.processingTime, 0),
-      itemsCount: items.length,
+      itemsCount: fullItems.length,
       triedOnCount: tryOnableItems.length,
       skippedAccessories: accessories.length > 0 ? accessories.map(a => ({
         id: a.id,
         type: a.type,
-        reason: 'Accessories cannot be tried on with virtual try-on',
+        reason: 'Accessories and shoes cannot be tried on with virtual try-on',
       })) : [],
     });
   } catch (error) {

@@ -118,10 +118,28 @@ export async function tryOnMultipleItems(
 }
 
 /**
- * Determine garment category from clothing type
- * Returns null for accessories (hats, bags, etc.) that cannot be tried on
+ * Determine garment category from clothing type or layering category
+ * Returns null for accessories (hats, bags, shoes, etc.) that cannot be tried on
  */
-export function getGarmentCategory(clothingType: string | null): 'upper_body' | 'lower_body' | 'dresses' | null {
+export function getGarmentCategory(
+  clothingType: string | null,
+  layeringCategory?: string | null
+): 'upper_body' | 'lower_body' | 'dresses' | null {
+  // First check layering category (new system)
+  if (layeringCategory) {
+    const layer = layeringCategory.toLowerCase();
+    if (layer === 'top' || layer === 'jacket') {
+      return 'upper_body';
+    }
+    if (layer === 'bottom') {
+      return 'lower_body';
+    }
+    if (layer === 'shoes' || layer === 'accessories') {
+      return null; // Cannot be tried on
+    }
+  }
+
+  // Fallback to type-based detection
   if (!clothingType) {
     return 'upper_body'; // Default fallback
   }
@@ -144,7 +162,14 @@ export function getGarmentCategory(clothingType: string | null): 'upper_body' | 
     type.includes('jewelry') ||
     type.includes('watch') ||
     type.includes('scarf') ||
+    type.includes('shoes') ||
+    type.includes('sneakers') ||
+    type.includes('boots') ||
+    type.includes('sandals') ||
+    type.includes('heels') ||
+    type.includes('flats') ||
     type === 'accessory' ||
+    type === 'accessories' ||
     type.includes('accessory')
   ) {
     return null; // Accessories cannot be tried on
