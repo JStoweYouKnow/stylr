@@ -42,7 +42,20 @@ export async function exchangeCodeForTokens(code: string, userId: string) {
   });
 
   const oauth2Client = createOAuth2Client();
-  const { tokens } = await oauth2Client.getToken(code);
+
+  let tokens;
+  try {
+    const result = await oauth2Client.getToken(code);
+    tokens = result.tokens;
+  } catch (error: any) {
+    // Log detailed error from Google
+    console.error('Google OAuth token exchange failed:', {
+      error: error.message,
+      code: error.code,
+      response: error.response?.data,
+    });
+    throw error;
+  }
 
   // Save tokens to database
   await prisma.emailConnection.upsert({
