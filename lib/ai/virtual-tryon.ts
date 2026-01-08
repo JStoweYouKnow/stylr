@@ -40,7 +40,18 @@ export async function generateVirtualTryOn(
   });
 
   try {
+    // Validate inputs before making API call
+    if (!personImageUrl || typeof personImageUrl !== 'string') {
+      throw new Error(`Invalid person image URL: ${personImageUrl}`);
+    }
+    if (!garmentImageUrl || typeof garmentImageUrl !== 'string') {
+      throw new Error(`Invalid garment image URL: ${garmentImageUrl}`);
+    }
+
     console.log('Starting virtual try-on with IDM-VTON...');
+    console.log('Person image:', personImageUrl);
+    console.log('Garment image:', garmentImageUrl);
+    console.log('Category:', options?.category || 'upper_body');
 
     // Using IDM-VTON model (ECCV 2024 - supports upper, lower, and dresses)
     const output = await replicate.run(
