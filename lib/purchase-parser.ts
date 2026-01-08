@@ -55,66 +55,52 @@ Important:
 - Infer clothing type from item name if not explicit`;
 
   try {
-    // Use Replicate API with meta/llama model (Gemini text-only not available)
-    if (!process.env.REPLICATE_API_TOKEN) {
-      throw new Error("REPLICATE_API_TOKEN not configured");
+    // Use Claude API for receipt parsing (fast and accurate for structured data extraction)
+    if (!process.env.ANTHROPIC_API_KEY) {
+      throw new Error("ANTHROPIC_API_KEY not configured");
     }
 
-    console.log('Using Replicate LLaMA for receipt parsing');
+    console.log('Using Claude Haiku for receipt parsing');
 
-    // Start the prediction
-    const predictionResponse = await fetch(
-      'https://api.replicate.com/v1/predictions',
+    const response = await fetch(
+      'https://api.anthropic.com/v1/messages',
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.REPLICATE_API_TOKEN}`,
+          "x-api-key": process.env.ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
-          version: "dd09b18b0e9ba185eadbef42a9c84edc5b44cbc5", // meta/meta-llama-3-70b-instruct
-          input: {
-            prompt: prompt,
-            max_tokens: 2048,
-            temperature: 0.2,
-          },
+          model: "claude-3-5-haiku-20241022",
+          max_tokens: 2048,
+          temperature: 0.2,
+          messages: [
+            {
+              role: "user",
+              content: prompt,
+            },
+          ],
         }),
       }
     );
 
-    if (!predictionResponse.ok) {
-      const errorText = await predictionResponse.text();
-      console.error(`Replicate prediction start failed:`, {
-        status: predictionResponse.status,
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Claude API request failed:`, {
+        status: response.status,
         error: errorText.substring(0, 500),
       });
-      throw new Error(`Replicate API error: ${predictionResponse.status}`);
+      throw new Error(`Claude API error: ${response.status}`);
     }
 
-    const prediction = await predictionResponse.json();
+    const data = await response.json();
 
-    // Poll for completion
-    let result = prediction;
-    let attempts = 0;
-    while (result.status !== "succeeded" && result.status !== "failed" && attempts < 60) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const statusResponse = await fetch(
-        `https://api.replicate.com/v1/predictions/${result.id}`,
-        {
-          headers: {
-            "Authorization": `Bearer ${process.env.REPLICATE_API_TOKEN}`,
-          },
-        }
-      );
-      result = await statusResponse.json();
-      attempts++;
+    if (!data.content || !data.content[0] || !data.content[0].text) {
+      throw new Error("Invalid response structure from Claude API");
     }
 
-    if (result.status !== "succeeded" || !result.output) {
-      throw new Error(`Replicate prediction failed or timed out`);
-    }
-
-    const content = Array.isArray(result.output) ? result.output.join('') : result.output;
+    const content = data.content[0].text;
 
     // Extract JSON from response (handle markdown code blocks if present)
     let jsonText = content.trim();
