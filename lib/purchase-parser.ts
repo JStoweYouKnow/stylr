@@ -60,9 +60,9 @@ Important:
       throw new Error("GOOGLE_AI_API_KEY not configured");
     }
 
-    // Use v1beta API with specific model version that's known to work
-    // gemini-1.5-flash-latest is the stable identifier for the latest flash model
-    let model = process.env.GEMINI_MODEL || 'gemini-1.5-flash-latest';
+    // Use v1beta API with specific version number
+    // gemini-1.5-flash-001 is a stable versioned identifier
+    let model = process.env.GEMINI_MODEL || 'gemini-1.5-flash-001';
 
     // Ensure model name doesn't have leading/trailing spaces
     model = model.trim();
