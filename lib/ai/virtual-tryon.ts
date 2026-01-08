@@ -61,8 +61,22 @@ export async function generateVirtualTryOn(
 
     console.log(`Virtual try-on completed in ${processingTime}ms`);
 
-    // Handle both string and array responses
-    const imageUrl = Array.isArray(output) ? output[0] : (output as unknown as string);
+    // Handle different output formats from Replicate
+    let imageUrl: string;
+    if (Array.isArray(output)) {
+      // If array, get first element
+      const firstOutput = output[0];
+      // Check if it's an object with a url property
+      imageUrl = typeof firstOutput === 'object' && firstOutput !== null && 'url' in firstOutput
+        ? (firstOutput as any).url
+        : firstOutput;
+    } else if (typeof output === 'object' && output !== null && 'url' in output) {
+      // If object with url property
+      imageUrl = (output as any).url;
+    } else {
+      // If plain string
+      imageUrl = output as string;
+    }
 
     return {
       imageUrl,
