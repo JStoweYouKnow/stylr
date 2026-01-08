@@ -60,14 +60,14 @@ Important:
       throw new Error("GOOGLE_AI_API_KEY not configured");
     }
 
-    // Use configurable model name, default to gemini-1.5-flash (use v1 API, not v1beta)
-    // For text-only generation, gemini-1.5-flash should work, but fallback to gemini-pro if needed
+    // Use v1beta API for text generation (v1 doesn't support gemini-1.5-flash)
+    // Default to gemini-1.5-flash for fast text processing
     let model = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
-    
+
     // Ensure model name doesn't have leading/trailing spaces
     model = model.trim();
-    
-    const apiUrl = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${process.env.GOOGLE_AI_API_KEY}`;
+
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GOOGLE_AI_API_KEY}`;
     console.log(`Using Gemini model: ${model}`);
     console.log(`API URL: ${apiUrl.replace(/\?key=.*/, '?key=***')}`); // Log URL without exposing key
 
