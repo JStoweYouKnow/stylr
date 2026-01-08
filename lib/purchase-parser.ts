@@ -55,55 +55,66 @@ Important:
 - Infer clothing type from item name if not explicit`;
 
   try {
-    // Call Gemini v1 API directly (v1beta models not available)
-    if (!process.env.GOOGLE_AI_API_KEY) {
-      throw new Error("GOOGLE_AI_API_KEY not configured");
+    // Use Replicate API with meta/llama model (Gemini text-only not available)
+    if (!process.env.REPLICATE_API_TOKEN) {
+      throw new Error("REPLICATE_API_TOKEN not configured");
     }
 
-    const model = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
-    console.log(`Using Gemini model: ${model} (via v1 API)`);
+    console.log('Using Replicate LLaMA for receipt parsing');
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${process.env.GOOGLE_AI_API_KEY}`,
+    // Start the prediction
+    const predictionResponse = await fetch(
+      'https://api.replicate.com/v1/predictions',
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.REPLICATE_API_TOKEN}`,
         },
         body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: prompt,
-                },
-              ],
-            },
-          ],
-          generationConfig: {
+          version: "dd09b18b0e9ba185eadbef42a9c84edc5b44cbc5", // meta/meta-llama-3-70b-instruct
+          input: {
+            prompt: prompt,
+            max_tokens: 2048,
             temperature: 0.2,
-            maxOutputTokens: 2048,
           },
         }),
       }
     );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Gemini API request failed:`, {
-        status: response.status,
+    if (!predictionResponse.ok) {
+      const errorText = await predictionResponse.text();
+      console.error(`Replicate prediction start failed:`, {
+        status: predictionResponse.status,
         error: errorText.substring(0, 500),
       });
-      throw new Error(`Gemini API error: ${response.status}`);
+      throw new Error(`Replicate API error: ${predictionResponse.status}`);
     }
 
-    const data = await response.json();
+    const prediction = await predictionResponse.json();
 
-    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-      throw new Error("Invalid response structure from Gemini API");
+    // Poll for completion
+    let result = prediction;
+    let attempts = 0;
+    while (result.status !== "succeeded" && result.status !== "failed" && attempts < 60) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      const statusResponse = await fetch(
+        `https://api.replicate.com/v1/predictions/${result.id}`,
+        {
+          headers: {
+            "Authorization": `Bearer ${process.env.REPLICATE_API_TOKEN}`,
+          },
+        }
+      );
+      result = await statusResponse.json();
+      attempts++;
     }
 
-    const content = data.candidates[0].content.parts[0].text;
+    if (result.status !== "succeeded" || !result.output) {
+      throw new Error(`Replicate prediction failed or timed out`);
+    }
+
+    const content = Array.isArray(result.output) ? result.output.join('') : result.output;
 
     // Extract JSON from response (handle markdown code blocks if present)
     let jsonText = content.trim();
