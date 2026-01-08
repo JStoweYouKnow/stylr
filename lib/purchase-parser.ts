@@ -1,3 +1,5 @@
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
 export interface ParsedPurchase {
   items: ParsedItem[];
   orderNumber?: string;
@@ -55,76 +57,19 @@ Important:
 - Infer clothing type from item name if not explicit`;
 
   try {
-    // Call Gemini text API directly
+    // Call Gemini using SDK (works better than direct REST API)
     if (!process.env.GOOGLE_AI_API_KEY) {
       throw new Error("GOOGLE_AI_API_KEY not configured");
     }
 
-    // Use v1beta API with gemini-pro (stable model for text generation)
-    // gemini-pro is the known-working model for text generation via REST API
-    let model = process.env.GEMINI_MODEL || 'gemini-pro';
+    const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-002' });
 
-    // Ensure model name doesn't have leading/trailing spaces
-    model = model.trim();
+    console.log('Using Gemini model: gemini-1.5-flash-002 (via SDK)');
 
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GOOGLE_AI_API_KEY}`;
-    console.log(`Using Gemini model: ${model}`);
-    console.log(`API URL: ${apiUrl.replace(/\?key=.*/, '?key=***')}`); // Log URL without exposing key
-
-    const response = await fetch(apiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: prompt,
-              },
-            ],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 2048,
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      let errorMessage = `Gemini API error (${response.status} ${response.statusText}): ${errorText}`;
-      
-      // Try to parse error JSON for more details
-      try {
-        const errorJson = JSON.parse(errorText);
-        if (errorJson.error?.message) {
-          errorMessage = `Gemini API error: ${errorJson.error.message}`;
-        }
-      } catch {
-        // If not JSON, use the text as-is
-      }
-      
-      console.error(`Gemini API request failed:`, {
-        status: response.status,
-        statusText: response.statusText,
-        url: apiUrl.replace(/\?key=.*/, '?key=***'),
-        error: errorText.substring(0, 500), // First 500 chars
-      });
-      
-      throw new Error(errorMessage);
-    }
-
-    const data = await response.json();
-
-    // Validate response structure
-    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-      throw new Error("Invalid response structure from Gemini API");
-    }
-
-    const content = data.candidates[0].content.parts[0].text;
+    const result = await model.generateContent(prompt);
+    const response = result.response;
+    const content = response.text();
 
     // Extract JSON from response (handle markdown code blocks if present)
     let jsonText = content.trim();
