@@ -70,22 +70,44 @@ export async function getGmailClient(userId: string) {
       throw new Error("Refresh token not available. Please reconnect your email.");
     }
 
-    oauth2Client.setCredentials({
-      refresh_token: connection.refreshToken,
-    });
+    console.log('Access token expired, attempting refresh...');
 
-    const { credentials } = await oauth2Client.refreshAccessToken();
+    try {
+      oauth2Client.setCredentials({
+        refresh_token: connection.refreshToken,
+      });
 
-    // Update tokens in database
-    await prisma.emailConnection.update({
-      where: { userId },
-      data: {
-        accessToken: credentials.access_token!,
-        expiresAt: credentials.expiry_date ? new Date(credentials.expiry_date) : null,
-      },
-    });
+      const { credentials } = await oauth2Client.refreshAccessToken();
 
-    oauth2Client.setCredentials(credentials);
+      // Update tokens in database
+      await prisma.emailConnection.update({
+        where: { userId },
+        data: {
+          accessToken: credentials.access_token!,
+          expiresAt: credentials.expiry_date ? new Date(credentials.expiry_date) : null,
+        },
+      });
+
+      oauth2Client.setCredentials(credentials);
+      console.log('Successfully refreshed access token');
+    } catch (refreshError: any) {
+      console.error('Token refresh failed:', {
+        error: refreshError.message,
+        code: refreshError.code,
+        status: refreshError.status,
+      });
+
+      // Mark connection as inactive if refresh fails
+      await prisma.emailConnection.update({
+        where: { userId },
+        data: { isActive: false },
+      });
+
+      throw new Error(
+        "Gmail connection expired and could not be refreshed. Please reconnect your Gmail account in Settings. " +
+        "This usually happens if the app's OAuth consent is in testing mode or if you revoked access."
+      );
+    }
   } else {
     oauth2Client.setCredentials({
       access_token: connection.accessToken,
