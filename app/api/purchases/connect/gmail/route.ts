@@ -20,6 +20,12 @@ export async function POST(request: NextRequest) {
 
     // Check if Gmail OAuth is configured
     if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      console.error('Gmail OAuth not configured:', {
+        hasClientId: !!process.env.GOOGLE_CLIENT_ID,
+        hasClientSecret: !!process.env.GOOGLE_CLIENT_SECRET,
+        hasRedirectUri: !!process.env.GOOGLE_REDIRECT_URI,
+      });
+
       return NextResponse.json(
         {
           error: "Gmail integration not configured. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables."
@@ -27,6 +33,8 @@ export async function POST(request: NextRequest) {
         { status: 503 }
       );
     }
+
+    console.log('Gmail OAuth configured successfully');
 
     const authUrl = getGmailAuthUrl(userId);
 
