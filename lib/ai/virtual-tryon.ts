@@ -75,7 +75,7 @@ export async function generateVirtualTryOn(
       imageUrl = (output as any).url;
     } else {
       // If plain string
-      imageUrl = output as string;
+      imageUrl = output as unknown as string;
     }
 
     return {
