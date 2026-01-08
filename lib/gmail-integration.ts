@@ -1,16 +1,24 @@
 import { google } from "googleapis";
 import { prisma } from "./db";
 
-const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  process.env.GOOGLE_REDIRECT_URI || "https://stylr.projcomfort.com/api/purchases/connect/gmail/callback"
-);
+/**
+ * Create a new OAuth2 client with current environment variables
+ * This ensures we always use fresh credentials, avoiding serverless caching issues
+ */
+function createOAuth2Client() {
+  return new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    process.env.GOOGLE_REDIRECT_URI || "https://stylr.projcomfort.com/api/purchases/connect/gmail/callback"
+  );
+}
 
 /**
  * Generate Gmail OAuth URL for user to authorize
  */
 export function getGmailAuthUrl(userId: string): string {
+  const oauth2Client = createOAuth2Client();
+
   const scopes = [
     "https://www.googleapis.com/auth/gmail.readonly", // Read emails only
   ];
@@ -33,6 +41,7 @@ export async function exchangeCodeForTokens(code: string, userId: string) {
     redirectUri: process.env.GOOGLE_REDIRECT_URI,
   });
 
+  const oauth2Client = createOAuth2Client();
   const { tokens } = await oauth2Client.getToken(code);
 
   // Save tokens to database
@@ -61,6 +70,8 @@ export async function exchangeCodeForTokens(code: string, userId: string) {
  * Get Gmail client for a user
  */
 export async function getGmailClient(userId: string) {
+  const oauth2Client = createOAuth2Client();
+
   const connection = await prisma.emailConnection.findUnique({
     where: { userId, isActive: true },
   });
