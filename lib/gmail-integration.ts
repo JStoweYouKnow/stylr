@@ -160,18 +160,37 @@ export async function searchPurchaseEmails(userId: string, daysBack: number = 30
   searchDate.setDate(searchDate.getDate() - daysBack);
   const afterDate = Math.floor(searchDate.getTime() / 1000);
 
-  // Build search query for common retailers and order confirmations
+  // Build comprehensive search query for purchase confirmations
+  // This catches emails from any retailer with purchase-related keywords
   const query = `
-    (from:(amazon.com OR nordstrom.com OR jcrew.com OR uniqlo.com OR hm.com OR zara.com OR gap.com OR oldnavy.com OR bananarepublic.com OR macys.com OR bloomingdales.com OR shopify.com OR etsy.com)
-    OR subject:(order confirmation OR order receipt OR shipment OR tracking OR "your order"))
+    subject:(
+      "order confirmation" OR
+      "order receipt" OR
+      "order placed" OR
+      "purchase confirmation" OR
+      "thank you for your order" OR
+      "your order" OR
+      "order number" OR
+      "shipment" OR
+      "shipping confirmation" OR
+      "has shipped" OR
+      "tracking" OR
+      "delivery" OR
+      "receipt" OR
+      "invoice"
+    )
     after:${afterDate}
   `.trim().replace(/\s+/g, " ");
+
+  console.log('Gmail search query:', query);
 
   const response = await gmail.users.messages.list({
     userId: "me",
     q: query,
     maxResults: 100, // Limit to avoid rate limits
   });
+
+  console.log(`Found ${response.data.messages?.length || 0} potential purchase emails`);
 
   return response.data.messages || [];
 }
