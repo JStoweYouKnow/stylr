@@ -127,10 +127,34 @@ export default function OutfitVisualizer({ itemIds, mode = 'ai-generated' }: Out
 
       if (data.finalImageUrl) {
         setImageUrl(data.finalImageUrl);
+
+        // Show success message
+        const providerName = data.provider === 'outfitanyone' ? 'OutfitAnyone' : 'IDM-VTON';
         toast.success(
-          `Virtual try-on complete! Processed ${data.itemsCount} items in ${(data.totalProcessingTime / 1000).toFixed(1)}s`,
+          `Virtual try-on complete using ${providerName}! (${(data.totalProcessingTime / 1000).toFixed(1)}s)`,
           { id: loadingToast, duration: 5000 }
         );
+
+        // Show warnings about skipped items
+        if (data.skippedDuplicates && data.skippedDuplicates.length > 0) {
+          setTimeout(() => {
+            const skippedTypes = data.skippedDuplicates.map((s: any) => s.type).join(', ');
+            toast(
+              `Note: ${data.skippedDuplicates.length} item(s) were skipped (${skippedTypes}). Only one item per category can be shown. ${data.skippedDuplicates[0].reason}`,
+              { icon: 'ℹ️', duration: 8000 }
+            );
+          }, 1000);
+        }
+
+        // Show fallback info
+        if (data.fallbackUsed) {
+          setTimeout(() => {
+            toast(
+              `${data.fallbackReason || 'Used fallback method for better compatibility'}`,
+              { icon: 'ℹ️', duration: 6000 }
+            );
+          }, 2000);
+        }
       }
     } catch (error) {
       console.error('Virtual try-on error:', error);

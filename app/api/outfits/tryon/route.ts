@@ -6,6 +6,8 @@ import {
   tryOnMultipleItems,
   getGarmentCategory,
   validateImageUrl,
+  generateOutfitAnyoneTryOn,
+  selectOutermostGarment,
 } from '@/lib/ai/virtual-tryon';
 import { put } from '@vercel/blob';
 
@@ -144,52 +146,223 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // Try on items sequentially (each result becomes input for next)
-    let currentPersonImage = personImageUrl;
-    const results = [];
+    // Group garments by category
+    const upperBodyItems = tryOnableItems.filter(g => g.category === 'upper_body');
+    const lowerBodyItems = tryOnableItems.filter(g => g.category === 'lower_body');
+    const dresses = tryOnableItems.filter(g => g.category === 'dresses');
 
-    for (const garment of tryOnableItems) {
+    // Track skipped items due to multiple in same category
+    const skippedDuplicates: Array<{ id: number; type: string | null; reason: string }> = [];
+
+    // Select best garment from each category
+    let selectedTopUrl: string | null = null;
+    let selectedTopItem: typeof tryOnableItems[0] | null = null;
+
+    if (upperBodyItems.length > 0) {
+      if (upperBodyItems.length > 1) {
+        // Multiple upper body items - select outermost layer
+        const outermostUrl = selectOutermostGarment(upperBodyItems.map(item => ({
+          type: item.type,
+          imageUrl: item.imageUrl,
+        })));
+
+        selectedTopItem = upperBodyItems.find(item => item.imageUrl === outermostUrl) || upperBodyItems[0];
+        selectedTopUrl = outermostUrl;
+
+        // Mark others as skipped
+        for (const item of upperBodyItems) {
+          if (item.imageUrl !== outermostUrl) {
+            skippedDuplicates.push({
+              id: item.id,
+              type: item.type,
+              reason: `Only the outermost layer (${selectedTopItem.type}) can be shown. Virtual try-on models cannot layer multiple upper body items like jacket + shirt together.`,
+            });
+          }
+        }
+
+        console.log(`Multiple upper body items detected. Selected: ${selectedTopItem.type}, Skipped: ${skippedDuplicates.map(s => s.type).join(', ')}`);
+      } else {
+        selectedTopItem = upperBodyItems[0];
+        selectedTopUrl = upperBodyItems[0].imageUrl;
+      }
+    }
+
+    let selectedBottomUrl: string | null = null;
+    let selectedBottomItem: typeof tryOnableItems[0] | null = null;
+
+    if (lowerBodyItems.length > 0) {
+      if (lowerBodyItems.length > 1) {
+        // Multiple lower body items - just pick first
+        selectedBottomItem = lowerBodyItems[0];
+        selectedBottomUrl = lowerBodyItems[0].imageUrl;
+
+        for (let i = 1; i < lowerBodyItems.length; i++) {
+          skippedDuplicates.push({
+            id: lowerBodyItems[i].id,
+            type: lowerBodyItems[i].type,
+            reason: `Only one lower body item can be shown at a time. Selected: ${selectedBottomItem.type}`,
+          });
+        }
+      } else {
+        selectedBottomItem = lowerBodyItems[0];
+        selectedBottomUrl = lowerBodyItems[0].imageUrl;
+      }
+    }
+
+    // Handle dresses (they replace both top and bottom)
+    if (dresses.length > 0) {
+      if (upperBodyItems.length > 0 || lowerBodyItems.length > 0) {
+        console.log('Dress detected - will replace top and bottom items');
+
+        // Mark top/bottom as skipped if dress is present
+        if (selectedTopItem) {
+          skippedDuplicates.push({
+            id: selectedTopItem.id,
+            type: selectedTopItem.type,
+            reason: 'Cannot show top with dress. Dress replaces entire outfit.',
+          });
+        }
+        if (selectedBottomItem) {
+          skippedDuplicates.push({
+            id: selectedBottomItem.id,
+            type: selectedBottomItem.type,
+            reason: 'Cannot show bottom with dress. Dress replaces entire outfit.',
+          });
+        }
+      }
+
+      // Use first dress, mark others as skipped
+      const selectedDress = dresses[0];
+
+      for (let i = 1; i < dresses.length; i++) {
+        skippedDuplicates.push({
+          id: dresses[i].id,
+          type: dresses[i].type,
+          reason: 'Only one dress can be shown at a time.',
+        });
+      }
+
+      // For dresses, use IDM-VTON (OutfitAnyone doesn't handle dresses well)
       try {
         const result = await generateVirtualTryOn(
-          currentPersonImage,
-          garment.imageUrl,
-          { category: garment.category! } // Safe to assert non-null since we filtered
+          personImageUrl,
+          selectedDress.imageUrl,
+          { category: 'dresses' }
         );
 
-        results.push({
-          itemId: garment.id,
-          itemType: garment.type,
-          resultUrl: result.imageUrl,
-          processingTime: result.processingTime,
-        });
-
-        // Use this result as the base for the next item
-        currentPersonImage = result.imageUrl;
-      } catch (error) {
-        console.error(`Failed to try on ${garment.type}:`, error);
         return NextResponse.json({
-          error: `Failed to try on ${garment.type}`,
+          finalImageUrl: result.imageUrl,
+          provider: 'idm-vton',
+          itemsUsed: [{ id: selectedDress.id, type: selectedDress.type, category: 'dresses' }],
+          totalProcessingTime: result.processingTime,
+          itemsCount: fullItems.length,
+          triedOnCount: 1,
+          skippedDuplicates: skippedDuplicates.length > 0 ? skippedDuplicates : undefined,
+          skippedAccessories: accessories.length > 0 ? accessories.map(a => ({
+            id: a.id,
+            type: a.type,
+            reason: 'Accessories (shoes, bags, hats, jewelry) cannot be tried on. Only clothing items (tops, bottoms, dresses) are supported.',
+          })) : [],
+        });
+      } catch (error) {
+        console.error('Failed to try on dress:', error);
+        return NextResponse.json({
+          error: `Failed to try on ${selectedDress.type}`,
           details: error instanceof Error ? error.message : 'Unknown error',
-          partialResults: results,
         }, { status: 500 });
       }
     }
 
-    // The final result shows the complete outfit
-    const finalResult = results[results.length - 1];
+    // If no items to try on after filtering, return error
+    if (!selectedTopUrl && !selectedBottomUrl) {
+      return NextResponse.json({
+        error: 'No valid outfit combination',
+        message: 'Please select at least one top or bottom garment.',
+      }, { status: 400 });
+    }
 
-    return NextResponse.json({
-      finalImageUrl: finalResult.resultUrl,
-      stepResults: results,
-      totalProcessingTime: results.reduce((sum, r) => sum + r.processingTime, 0),
-      itemsCount: fullItems.length,
-      triedOnCount: tryOnableItems.length,
-      skippedAccessories: accessories.length > 0 ? accessories.map(a => ({
-        id: a.id,
-        type: a.type,
-        reason: 'Accessories (shoes, bags, hats, jewelry) cannot be tried on. Only clothing items (tops, bottoms, dresses) are supported.',
-      })) : [],
-    });
+    // Use OutfitAnyone for complete outfits (top + bottom)
+    try {
+      console.log(`Using OutfitAnyone with top: ${selectedTopItem?.type || 'none'}, bottom: ${selectedBottomItem?.type || 'none'}`);
+
+      const result = await generateOutfitAnyoneTryOn(
+        personImageUrl,
+        selectedTopUrl,
+        selectedBottomUrl
+      );
+
+      const itemsUsed = [];
+      if (selectedTopItem) itemsUsed.push({ id: selectedTopItem.id, type: selectedTopItem.type, category: 'upper_body' });
+      if (selectedBottomItem) itemsUsed.push({ id: selectedBottomItem.id, type: selectedBottomItem.type, category: 'lower_body' });
+
+      return NextResponse.json({
+        finalImageUrl: result.imageUrl,
+        provider: 'outfitanyone',
+        itemsUsed,
+        totalProcessingTime: result.processingTime,
+        itemsCount: fullItems.length,
+        triedOnCount: itemsUsed.length,
+        skippedDuplicates: skippedDuplicates.length > 0 ? skippedDuplicates : undefined,
+        skippedAccessories: accessories.length > 0 ? accessories.map(a => ({
+          id: a.id,
+          type: a.type,
+          reason: 'Accessories (shoes, bags, hats, jewelry) cannot be tried on. Only clothing items (tops, bottoms, dresses) are supported.',
+        })) : [],
+      });
+    } catch (error) {
+      console.error('OutfitAnyone failed, falling back to IDM-VTON:', error);
+
+      // Fallback to IDM-VTON sequential try-on
+      try {
+        let currentPersonImage = personImageUrl;
+        const results = [];
+
+        // Try on selected items sequentially
+        const itemsToTryOn = [selectedTopItem, selectedBottomItem].filter(Boolean) as typeof tryOnableItems;
+
+        for (const item of itemsToTryOn) {
+          const result = await generateVirtualTryOn(
+            currentPersonImage,
+            item.imageUrl,
+            { category: item.category! }
+          );
+
+          results.push({
+            itemId: item.id,
+            itemType: item.type,
+            resultUrl: result.imageUrl,
+            processingTime: result.processingTime,
+          });
+
+          currentPersonImage = result.imageUrl;
+        }
+
+        const finalResult = results[results.length - 1];
+
+        return NextResponse.json({
+          finalImageUrl: finalResult.resultUrl,
+          provider: 'idm-vton',
+          stepResults: results,
+          totalProcessingTime: results.reduce((sum, r) => sum + r.processingTime, 0),
+          itemsCount: fullItems.length,
+          triedOnCount: itemsToTryOn.length,
+          skippedDuplicates: skippedDuplicates.length > 0 ? skippedDuplicates : undefined,
+          skippedAccessories: accessories.length > 0 ? accessories.map(a => ({
+            id: a.id,
+            type: a.type,
+            reason: 'Accessories (shoes, bags, hats, jewelry) cannot be tried on. Only clothing items (tops, bottoms, dresses) are supported.',
+          })) : [],
+          fallbackUsed: true,
+          fallbackReason: 'OutfitAnyone unavailable, used IDM-VTON instead',
+        });
+      } catch (fallbackError) {
+        console.error('IDM-VTON fallback also failed:', fallbackError);
+        return NextResponse.json({
+          error: 'Virtual try-on failed',
+          details: fallbackError instanceof Error ? fallbackError.message : 'Unknown error',
+        }, { status: 500 });
+      }
+    }
   } catch (error) {
     console.error('Virtual try-on error:', error);
     return NextResponse.json(

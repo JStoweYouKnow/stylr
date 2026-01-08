@@ -5,10 +5,11 @@
 
 import Replicate from 'replicate';
 import { prisma } from '@/lib/db';
+import { Client } from '@gradio/client';
 
 export interface VirtualTryOnResult {
   imageUrl: string;
-  provider: 'replicate' | 'fashable' | 'ootd';
+  provider: 'replicate' | 'fashable' | 'ootd' | 'outfitanyone';
   processingTime: number;
 }
 
@@ -318,4 +319,135 @@ export async function validateImageUrl(url: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * Virtual Try-On using OutfitAnyone (Hugging Face)
+ * Supports complete outfits with top + bottom garments
+ *
+ * @param personImageUrl - URL to person's photo or avatar
+ * @param topGarmentUrl - URL to top garment image (jacket, shirt, etc.)
+ * @param bottomGarmentUrl - URL to bottom garment image (pants, skirt, etc.) - optional
+ */
+export async function generateOutfitAnyoneTryOn(
+  personImageUrl: string,
+  topGarmentUrl: string | null,
+  bottomGarmentUrl: string | null
+): Promise<VirtualTryOnResult> {
+  const startTime = Date.now();
+
+  try {
+    // Validate inputs
+    if (!personImageUrl || typeof personImageUrl !== 'string') {
+      throw new Error(`Invalid person image URL: ${personImageUrl}`);
+    }
+
+    console.log('Starting virtual try-on with OutfitAnyone...');
+    console.log('Person image:', personImageUrl);
+    console.log('Top garment:', topGarmentUrl || 'none');
+    console.log('Bottom garment:', bottomGarmentUrl || 'none');
+
+    // Fetch images as blobs
+    const personBlob = await fetch(personImageUrl).then(r => r.blob());
+
+    // OutfitAnyone requires both garment1 and garment2
+    // If we don't have both, use a transparent/dummy image or the same image
+    const topBlob = topGarmentUrl
+      ? await fetch(topGarmentUrl).then(r => r.blob())
+      : personBlob; // Use person image as fallback if no top provided
+
+    const bottomBlob = bottomGarmentUrl
+      ? await fetch(bottomGarmentUrl).then(r => r.blob())
+      : personBlob; // Use person image as fallback if no bottom provided
+
+    console.log('Connecting to OutfitAnyone API...');
+    const client = await Client.connect("HumanAIGC/OutfitAnyone");
+
+    console.log('Sending request to OutfitAnyone...');
+    const result = await client.predict("/get_tryon_result", {
+      model_name: personBlob,  // Person image
+      garment1: topBlob,       // Top garment
+      garment2: bottomBlob,    // Bottom garment
+    });
+
+    const processingTime = Date.now() - startTime;
+
+    console.log(`OutfitAnyone completed in ${processingTime}ms`);
+    console.log('Result:', result);
+
+    // Extract image URL from result
+    // The result.data should contain the output image URL or path
+    let imageUrl: string;
+
+    if (typeof result.data === 'string') {
+      imageUrl = result.data;
+    } else if (Array.isArray(result.data) && result.data.length > 0) {
+      imageUrl = result.data[0];
+    } else if (result.data && typeof result.data === 'object' && 'url' in result.data) {
+      imageUrl = (result.data as any).url;
+    } else {
+      throw new Error(`Unexpected result format: ${JSON.stringify(result.data)}`);
+    }
+
+    // If the URL is a Hugging Face file path, construct the full URL
+    if (imageUrl.startsWith('/file=')) {
+      imageUrl = `https://humanaigc-outfitanyone.hf.space${imageUrl}`;
+    } else if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
+      // If it's a relative path, construct full URL
+      imageUrl = `https://humanaigc-outfitanyone.hf.space/file=${imageUrl}`;
+    }
+
+    console.log('Extracted image URL:', imageUrl);
+
+    return {
+      imageUrl,
+      provider: 'outfitanyone',
+      processingTime,
+    };
+  } catch (error) {
+    console.error('OutfitAnyone error:', error);
+    throw new Error(`Failed to generate OutfitAnyone try-on: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
+ * Helper function to select the best garment when multiple items in same category
+ * Priority: jacket > cardigan > hoodie > sweater > shirt > t-shirt
+ */
+export function selectOutermostGarment(garments: Array<{ type: string | null; imageUrl: string }>): string {
+  const priorityMap: Record<string, number> = {
+    jacket: 100,
+    coat: 95,
+    blazer: 90,
+    cardigan: 80,
+    hoodie: 70,
+    sweater: 60,
+    sweatshirt: 55,
+    vest: 50,
+    shirt: 40,
+    blouse: 35,
+    top: 30,
+    tee: 20,
+    't-shirt': 15,
+  };
+
+  // Find garment with highest priority
+  let bestGarment = garments[0];
+  let bestPriority = 0;
+
+  for (const garment of garments) {
+    if (!garment.type) continue;
+
+    const type = garment.type.toLowerCase();
+
+    // Check if type contains any priority keyword
+    for (const [keyword, priority] of Object.entries(priorityMap)) {
+      if (type.includes(keyword) && priority > bestPriority) {
+        bestPriority = priority;
+        bestGarment = garment;
+      }
+    }
+  }
+
+  return bestGarment.imageUrl;
 }
