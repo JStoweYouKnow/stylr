@@ -60,72 +60,108 @@ Important:
       throw new Error("GOOGLE_AI_API_KEY not configured");
     }
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key=${process.env.GOOGLE_AI_API_KEY}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: prompt,
-                },
-              ],
-            },
-          ],
-          generationConfig: {
-            temperature: 0.2,
-            maxOutputTokens: 2048,
+    // Use configurable model name, default to gemini-1.5-flash (use v1 API, not v1beta)
+    // For text-only generation, gemini-1.5-flash should work, but fallback to gemini-pro if needed
+    let model = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+    
+    // Ensure model name doesn't have leading/trailing spaces
+    model = model.trim();
+    
+    const apiUrl = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${process.env.GOOGLE_AI_API_KEY}`;
+    console.log(`Using Gemini model: ${model}`);
+    console.log(`API URL: ${apiUrl.replace(/\?key=.*/, '?key=***')}`); // Log URL without exposing key
+
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                text: prompt,
+              },
+            ],
           },
-        }),
-      }
-    );
+        ],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 2048,
+        },
+      }),
+    });
 
     if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.statusText}`);
+      const errorText = await response.text();
+      let errorMessage = `Gemini API error (${response.status} ${response.statusText}): ${errorText}`;
+      
+      // Try to parse error JSON for more details
+      try {
+        const errorJson = JSON.parse(errorText);
+        if (errorJson.error?.message) {
+          errorMessage = `Gemini API error: ${errorJson.error.message}`;
+        }
+      } catch {
+        // If not JSON, use the text as-is
+      }
+      
+      console.error(`Gemini API request failed:`, {
+        status: response.status,
+        statusText: response.statusText,
+        url: apiUrl.replace(/\?key=.*/, '?key=***'),
+        error: errorText.substring(0, 500), // First 500 chars
+      });
+      
+      throw new Error(errorMessage);
     }
 
     const data = await response.json();
-    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
-    if (!resultText) {
-      throw new Error("No text in Gemini response");
+    // Validate response structure
+    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+      throw new Error("Invalid response structure from Gemini API");
     }
 
-    // Clean up response - remove markdown code blocks if present
-    let jsonText = resultText.trim();
-    if (jsonText.startsWith("```json")) {
-      jsonText = jsonText.replace(/```json\n?/g, "").replace(/```\n?/g, "");
-    } else if (jsonText.startsWith("```")) {
-      jsonText = jsonText.replace(/```\n?/g, "");
+    const content = data.candidates[0].content.parts[0].text;
+
+    // Extract JSON from response (handle markdown code blocks if present)
+    let jsonText = content.trim();
+    if (jsonText.startsWith("```")) {
+      jsonText = jsonText.replace(/^```json\n?/, "").replace(/\n?```$/, "");
     }
 
-    const parsed = JSON.parse(jsonText) as ParsedPurchase;
+    // Remove any remaining markdown
+    jsonText = jsonText.replace(/^```\n?/, "").replace(/\n?```$/, "");
 
-    console.log('AI parsed result:', {
-      store: parsed.store,
-      itemCount: parsed.items?.length || 0,
-      items: parsed.items?.map(i => ({ name: i.name, type: i.type })),
-    });
+    try {
+      const parsed = JSON.parse(jsonText) as ParsedPurchase;
 
-    // Validate and clean up the parsed data
-    const result = {
-      items: parsed.items?.filter(item => item.name && item.name.length > 0) || [],
-      orderNumber: parsed.orderNumber || undefined,
-      purchaseDate: parsed.purchaseDate || undefined,
-      store: parsed.store || undefined,
-      total: parsed.total || undefined,
-    };
+      console.log('AI parsed result:', {
+        store: parsed.store,
+        itemCount: parsed.items?.length || 0,
+        items: parsed.items?.map(i => ({ name: i.name, type: i.type })),
+      });
 
-    if (result.items.length === 0) {
-      console.log('No clothing items found in email');
+      // Validate and clean up the parsed data
+      const result = {
+        items: parsed.items?.filter(item => item.name && item.name.length > 0) || [],
+        orderNumber: parsed.orderNumber || undefined,
+        purchaseDate: parsed.purchaseDate || undefined,
+        store: parsed.store || undefined,
+        total: parsed.total || undefined,
+      };
+
+      if (result.items.length === 0) {
+        console.log('No clothing items found in email');
+      }
+
+      return result;
+    } catch (parseError) {
+      console.error("Failed to parse Gemini response:", jsonText);
+      throw new Error(`Failed to parse AI response: ${parseError instanceof Error ? parseError.message : 'Invalid JSON'}`);
     }
-
-    return result;
   } catch (error) {
     console.error("Failed to parse receipt with AI:", error);
 
