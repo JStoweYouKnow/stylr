@@ -98,6 +98,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Update last synced timestamp
+    await prisma.emailConnection.update({
+      where: { userId },
+      data: { lastSyncedAt: new Date() },
+    }).catch(err => {
+      // If no email connection exists, that's okay - user might be using manual entry
+      console.log('Could not update lastSyncedAt:', err.message);
+    });
+
     return NextResponse.json({
       scanned: messages.length,
       found: foundCount,

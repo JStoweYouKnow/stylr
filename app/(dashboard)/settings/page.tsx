@@ -68,9 +68,30 @@ export default function SettingsPage() {
   };
 
   const checkGmailConnection = async () => {
-    // Check if user has an active email connection
-    // This would require a new API endpoint, but for now we'll skip it
-    // In production, you'd call: GET /api/email-connection?userId=...
+    try {
+      const response = await fetch("/api/email-connection");
+      const data = await response.json();
+
+      if (data.connected) {
+        setIsConnected(true);
+
+        // Set last sync date if available
+        if (data.connection.lastSyncedAt) {
+          setLastSyncDate(new Date(data.connection.lastSyncedAt).toLocaleDateString());
+        }
+
+        // Show warning if token is expired
+        if (data.connection.isExpired) {
+          toast.error("Gmail connection expired. Please reconnect to continue scanning purchases.");
+        }
+      } else {
+        setIsConnected(false);
+        setLastSyncDate(null);
+      }
+    } catch (error) {
+      console.error("Failed to check Gmail connection:", error);
+      setIsConnected(false);
+    }
   };
 
   const fetchPurchaseStats = async () => {
@@ -191,14 +212,25 @@ export default function SettingsPage() {
 
   const performDisconnect = async () => {
     setIsLoading(true);
+    const loadingToast = toast.loading("Disconnecting Gmail...");
+
     try {
-      // This would call a disconnect endpoint
-      // For now, we'll just update the UI
-      setIsConnected(false);
-      toast.success("Gmail disconnected successfully");
+      const response = await fetch("/api/email-connection", {
+        method: "DELETE",
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setIsConnected(false);
+        setLastSyncDate(null);
+        toast.success("Gmail disconnected successfully", { id: loadingToast });
+      } else {
+        toast.error(data.error || "Failed to disconnect Gmail", { id: loadingToast });
+      }
     } catch (error) {
       console.error("Error disconnecting Gmail:", error);
-      toast.error("Failed to disconnect Gmail. Please try again.");
+      toast.error("Failed to disconnect Gmail. Please try again.", { id: loadingToast });
     } finally {
       setIsLoading(false);
     }
