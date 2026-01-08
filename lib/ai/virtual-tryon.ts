@@ -71,23 +71,31 @@ export async function generateVirtualTryOn(
     const processingTime = Date.now() - startTime;
 
     console.log(`Virtual try-on completed in ${processingTime}ms`);
+    console.log('Raw output type:', typeof output);
+    console.log('Raw output:', JSON.stringify(output).substring(0, 200));
 
     // Handle different output formats from Replicate
     let imageUrl: string;
+
     if (Array.isArray(output)) {
-      // If array, get first element
-      const firstOutput = output[0];
-      // Check if it's an object with a url property
-      imageUrl = typeof firstOutput === 'object' && firstOutput !== null && 'url' in firstOutput
-        ? (firstOutput as any).url
-        : firstOutput;
-    } else if (typeof output === 'object' && output !== null && 'url' in output) {
-      // If object with url property
-      imageUrl = (output as any).url;
+      // If array, get first element which should be a string URL
+      imageUrl = String(output[0]);
+    } else if (typeof output === 'string') {
+      // If already a string
+      imageUrl = output;
     } else {
-      // If plain string
-      imageUrl = output as unknown as string;
+      // If it's an object or anything else, convert to string
+      // IDM-VTON returns a simple string URL, not an object
+      imageUrl = String(output);
     }
+
+    // Validate the extracted URL is actually a URL string
+    if (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
+      console.error('Invalid URL extracted:', imageUrl);
+      throw new Error(`Invalid image URL format: ${imageUrl.substring(0, 100)}`);
+    }
+
+    console.log('Extracted image URL:', imageUrl);
 
     return {
       imageUrl,
