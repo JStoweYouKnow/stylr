@@ -26,6 +26,13 @@ export function getGmailAuthUrl(userId: string): string {
  * Exchange authorization code for access tokens
  */
 export async function exchangeCodeForTokens(code: string, userId: string) {
+  // Log credentials being used (masked for security)
+  console.log('OAuth credentials check:', {
+    clientIdPrefix: process.env.GOOGLE_CLIENT_ID?.substring(0, 15) + '...',
+    clientSecretPrefix: process.env.GOOGLE_CLIENT_SECRET?.substring(0, 10) + '...',
+    redirectUri: process.env.GOOGLE_REDIRECT_URI,
+  });
+
   const { tokens } = await oauth2Client.getToken(code);
 
   // Save tokens to database
