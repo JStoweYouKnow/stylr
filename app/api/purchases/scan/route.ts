@@ -47,13 +47,17 @@ export async function POST(request: NextRequest) {
         // Get email content
         const email = await getEmailContent(userId, message.id);
 
+        console.log(`Processing email: "${email.subject.substring(0, 100)}"`);
+
         // Parse receipt with AI
         const parsed = await parseReceiptWithAI(email.subject, email.body);
 
         if (parsed.items.length === 0) {
+          console.log('Skipping - no clothing items found');
           continue; // No clothing items found
         }
 
+        console.log(`Found ${parsed.items.length} clothing items from ${parsed.store || 'unknown store'}`);
         foundCount++;
 
         // Check if we already have this order

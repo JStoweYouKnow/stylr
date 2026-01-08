@@ -106,14 +106,26 @@ Important:
 
     const parsed = JSON.parse(jsonText) as ParsedPurchase;
 
+    console.log('AI parsed result:', {
+      store: parsed.store,
+      itemCount: parsed.items?.length || 0,
+      items: parsed.items?.map(i => ({ name: i.name, type: i.type })),
+    });
+
     // Validate and clean up the parsed data
-    return {
+    const result = {
       items: parsed.items?.filter(item => item.name && item.name.length > 0) || [],
       orderNumber: parsed.orderNumber || undefined,
       purchaseDate: parsed.purchaseDate || undefined,
       store: parsed.store || undefined,
       total: parsed.total || undefined,
     };
+
+    if (result.items.length === 0) {
+      console.log('No clothing items found in email');
+    }
+
+    return result;
   } catch (error) {
     console.error("Failed to parse receipt with AI:", error);
 
