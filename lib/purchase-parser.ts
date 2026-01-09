@@ -743,32 +743,73 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
                              itemNameLower.split(/\s+/).slice(0, 3).filter(word => word.length > 2).every(word => emailText.includes(word));
         
         // FALLBACK: If brand + type + price match, accept even if name doesn't exactly match
-        // This helps with cases where product names are formatted differently
+        // This helps with cases where product names are formatted differently in HTML emails
         let brandTypePriceMatch = false;
-        if (item.brand && item.type && item.price) {
-          const brandLower = item.brand.toLowerCase();
+        let brandTypeMatch = false;
+        if (item.brand && item.type) {
+          const brandLower = item.brand.toLowerCase().replace(/['"]/g, ''); // Remove quotes/apostrophes
           const typeLower = item.type.toLowerCase();
-          const brandInEmail = emailText.includes(brandLower);
-          const typeInEmail = emailText.includes(typeLower);
-          const priceInEmail = item.price > 0 && emailText.includes(item.price.toString());
           
-          if (brandInEmail && typeInEmail && priceInEmail) {
-            brandTypePriceMatch = true;
-            console.log(`   Fallback match: brand "${item.brand}", type "${item.type}", price ${item.price} all found in email`);
+          // Check for brand variations (e.g., "Levi's" vs "Levis" vs "Levi")
+          const brandVariations = [
+            brandLower,
+            brandLower.replace(/'/g, ''), // "levi's" -> "levis"
+            brandLower.replace(/s$/, ''), // "levis" -> "levi"
+            brandLower.split("'")[0], // "levi's" -> "levi"
+          ];
+          
+          const brandInEmail = brandVariations.some(brand => emailText.includes(brand));
+          
+          // Check for type variations (e.g., "pants" vs "jeans", "shirt" vs "t-shirt")
+          const typeVariations: string[] = [
+            typeLower,
+            typeLower.replace(/-/g, ' '), // "t-shirt" -> "t shirt"
+            typeLower === 'pants' ? 'jeans' : '', // "pants" might be listed as "jeans"
+            typeLower === 'jeans' ? 'pants' : '', // "jeans" might be listed as "pants"
+          ].filter((t): t is string => Boolean(t));
+          
+          const typeInEmail = typeVariations.some(type => emailText.includes(type));
+          
+          // Check for price (more lenient - allow nearby prices or any price in email)
+          let priceInEmail = true; // Default to true if no price provided
+          if (item.price && item.price > 0) {
+            const priceStr = item.price.toString();
+            const pricePattern = new RegExp(`\\b${priceStr.replace(/\./g, '\\.')}\\b|\\$${priceStr.replace(/\./g, '\\.')}`);
+            priceInEmail = pricePattern.test(emailText);
+          }
+          
+          // Accept if brand + type match (price is optional for fallback)
+          if (brandInEmail && typeInEmail) {
+            brandTypeMatch = true;
+            if (priceInEmail) {
+              brandTypePriceMatch = true;
+              console.log(`   Fallback match: brand "${item.brand}", type "${item.type}", price ${item.price || 'N/A'} all found in email`);
+            } else {
+              console.log(`   Partial fallback: brand "${item.brand}", type "${item.type}" found in email (price ${item.price || 'N/A'} not verified)`);
+            }
           }
         }
         
+        // Accept if:
+        // 1. Enough keywords match (standard validation)
+        // 2. Full name matches and it's a specific product (trademark, etc.)
+        // 3. Brand + type + price all match (strong fallback)
+        // 4. Brand + type match AND we have at least 1 keyword match (weaker fallback for HTML emails)
         const isValid = (matches >= requiredMatches && (itemKeywords.length > 0 || itemNameLower.length > 5)) ||
                        (isLikelySpecificProduct && fullNameMatch && matches >= Math.max(1, requiredMatches - 1)) ||
-                       brandTypePriceMatch;
+                       brandTypePriceMatch ||
+                       (brandTypeMatch && matches >= 1); // Accept if brand+type match and at least 1 keyword found
         
         if (!isValid) {
           console.log(`❌ REJECTED - Item name "${item.name}" not found in email body`);
           console.log(`   Keywords searched: ${itemKeywords.join(', ')}`);
           console.log(`   Matches found: ${matches}, required: ${requiredMatches}`);
           console.log(`   Full name match: ${fullNameMatch}`);
-          if (item.brand && item.type && item.price) {
-            console.log(`   Brand/Type/Price fallback: ${brandTypePriceMatch ? 'matched' : 'not matched'}`);
+          if (item.brand && item.type) {
+            console.log(`   Brand/Type fallback: ${brandTypeMatch ? 'matched' : 'not matched'}`);
+            if (item.price) {
+              console.log(`   Brand/Type/Price fallback: ${brandTypePriceMatch ? 'matched' : 'not matched'}`);
+            }
           }
           if (item.price) {
             console.log(`   Price verification: ${priceMatchDetails}`);
@@ -777,6 +818,7 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
           console.log(`⚠️  WARNING - Item "${item.name}" found but ${priceMatchDetails}`);
         } else {
           const matchReason = brandTypePriceMatch ? 'brand/type/price match' : 
+                             brandTypeMatch && matches >= 1 ? 'brand/type + keyword match' :
                              fullNameMatch ? 'full name match' : 
                              `${matches} keyword matches`;
           console.log(`✅ VALIDATED - Item "${item.name}" verified in email (${matchReason})`);
