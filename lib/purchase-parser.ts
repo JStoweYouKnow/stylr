@@ -47,15 +47,38 @@ Return a JSON object with this exact structure:
   "total": 149.99
 }
 
-STRICT RULES - Only extract items that are WEARABLE CLOTHING:
-✅ INCLUDE: Shirts, pants, jeans, dresses, skirts, shorts, jackets, coats, sweaters, hoodies, t-shirts, blouses, suits, blazers, activewear, swimwear, shoes, boots, sneakers, sandals, socks, underwear, fashion scarves, fashion belts, hats, caps, beanies, gloves
+CRITICAL: THIS IS A CLOTHING WARDROBE APP. ONLY EXTRACT ITEMS YOU CAN WEAR ON YOUR BODY.
 
-❌ EXCLUDE: Electronics, books, home goods, furniture, kitchen items, toys, beauty products, skincare, makeup, phone cases, chargers, cables, gift cards, groceries, food, beverages, non-fashion accessories (watches, tech accessories, etc.), bags/luggage (unless clearly a fashion handbag/purse), jewelry (unless specifically fashion jewelry)
+✅ INCLUDE (things you can WEAR):
+- Clothing: shirts, pants, jeans, dresses, skirts, shorts, jackets, coats, sweaters, hoodies, t-shirts, blouses, suits, blazers
+- Footwear: shoes, boots, sneakers, sandals, heels, flats, loafers
+- Accessories that you WEAR: hats, caps, beanies, fashion scarves, fashion belts, gloves
+- Intimates: socks, underwear, bras, lingerie
+- Active/Swim: activewear, swimwear, athletic clothing
 
-If this email contains ONLY non-clothing items, return an empty items array.
-If this email contains MIXED items (clothing + non-clothing), ONLY extract the clothing items.
+❌ ABSOLUTELY EXCLUDE (NOT wearable clothing):
+- Home goods: bath caddies, towels, bedding, pillows, rugs, curtains, storage containers
+- Kitchen items: cookware, dishes, utensils, appliances
+- Furniture: chairs, tables, shelves, organizers
+- Food & Beverages: restaurant meals, groceries, snacks, drinks (CHEESEBURGERS ARE FOOD, NOT CLOTHING!)
+- Electronics: phones, chargers, cables, headphones, speakers
+- Beauty/Personal care: makeup, skincare, shampoo, soap, lotions
+- Books, toys, games, gift cards
+- Tech accessories: phone cases, laptop bags, mouse pads
 
-Extract as much detail as possible from item descriptions and infer clothing type from item name if not explicit.
+VERIFICATION STEP:
+Before adding ANY item to the items array, ask yourself: "Can I wear this item on my body as clothing or fashion?"
+- Bath caddy? NO - it's a bathroom storage item
+- Cheeseburger? NO - it's food
+- T-shirt? YES - it's wearable clothing
+- Jeans? YES - they're wearable clothing
+
+If the answer is NO, DO NOT include it in the items array.
+
+If this email contains ONLY non-clothing items, return {"items": [], ...other fields...}
+If mixed items, extract ONLY the wearable clothing items.
+
+Extract as much detail as possible from clothing item descriptions.
 Use null for missing fields.`;
 
   try {
