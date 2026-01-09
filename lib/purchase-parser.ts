@@ -38,7 +38,7 @@ EMAIL METADATA:
 - Subject: ${emailSubject}
 
 EMAIL BODY:
-${emailBody.substring(0, 8000)} // Reduced to avoid rate limits while capturing order details
+${emailBody.substring(0, 12000)} // Increased to capture item details in large HTML emails
 
 REMEMBER: 
 - This is a UNIQUE email from "${emailFrom || 'unknown sender'}" about "${emailSubject}"
@@ -306,7 +306,7 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
     console.log(`=== EMAIL BEING PARSED ===`);
     console.log(`From: ${emailFrom || 'Unknown sender'}`);
     console.log(`Subject: ${emailSubject}`);
-    console.log(`Body length: ${emailBody.length} chars (sending first ${Math.min(8000, emailBody.length)} to AI)`);
+    console.log(`Body length: ${emailBody.length} chars (sending first ${Math.min(12000, emailBody.length)} to AI)`);
     console.log(`Body preview (first 800 chars):`);
     console.log(emailBody.substring(0, 800));
     console.log(`... (truncated) ...`);
@@ -1031,7 +1031,7 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
         if (result.orderNumber || result.store) {
           console.log('⚠️  WARNING: AI found order confirmation (order number or store) but NO ITEMS');
           console.log('   This could mean:');
-          console.log('   1. Item details are beyond the 8,000 character limit');
+          console.log('   1. Item details are beyond the 12,000 character limit');
           console.log('   2. Email is a shipping/tracking notification (no itemized list)');
           console.log('   3. Email says "click to view order" without showing items');
           console.log('   4. HTML structure is too complex for AI to parse');
