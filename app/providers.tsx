@@ -1,6 +1,7 @@
 "use client";
 
 import { SessionProvider } from "next-auth/react";
+import DeepLinkHandler from "@/components/DeepLinkHandler";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -9,6 +10,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       refetchInterval={0}
       refetchOnWindowFocus={true}
     >
+      <DeepLinkHandler />
       {children}
     </SessionProvider>
   );

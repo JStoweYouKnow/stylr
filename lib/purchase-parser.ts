@@ -571,8 +571,27 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
 
       // CRITICAL: Check for cross-contamination - order number mismatch indicates AI is mixing emails
       // Extract order number from email subject/body to verify
-      const emailOrderNumberMatch = (emailSubject + ' ' + extractedBody.substring(0, 500)).match(/(?:order|#|number)[\s:]*([A-Z0-9\-]{4,})/i);
-      const emailOrderNumber = emailOrderNumberMatch?.[1]?.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      // More precise regex: look for order #, order number, or # followed by alphanumeric order ID
+      // Avoid matching CSS/HTML words like "CONFIRMATION", "OUTLOOK", etc.
+      const orderNumberPatterns = [
+        /(?:order\s*#|order\s*number|#)\s*([A-Z0-9\-]{4,})/i,
+        /order[:\s]+([A-Z0-9]{6,})/i, // Order: 12345678 (at least 6 chars)
+        /#([A-Z0-9]{4,})/i, // #1234 (standalone #)
+      ];
+      
+      let emailOrderNumber: string | undefined;
+      for (const pattern of orderNumberPatterns) {
+        const match = (emailSubject + ' ' + extractedBody.substring(0, 1000)).match(pattern);
+        if (match && match[1]) {
+          const candidate = match[1].toUpperCase().replace(/[^A-Z0-9]/g, '');
+          // Reject common HTML/CSS words that might be matched
+          const invalidWords = ['CONFIRMATION', 'OUTLOOK', 'BROWSER', 'VIEW', 'CLICK', 'EMAIL', 'SUBJECT', 'BODY', 'STYLE', 'SCRIPT'];
+          if (candidate.length >= 4 && !invalidWords.includes(candidate) && !candidate.match(/^[A-Z]{10,}$/)) {
+            emailOrderNumber = candidate;
+            break;
+          }
+        }
+      }
       
       if (parsed.orderNumber && emailOrderNumber) {
         const parsedOrderNumberClean = parsed.orderNumber.toUpperCase().replace(/[^A-Z0-9]/g, '');
