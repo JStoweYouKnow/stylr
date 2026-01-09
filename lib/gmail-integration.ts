@@ -458,20 +458,45 @@ export async function getEmailContent(userId: string, messageId: string) {
     message.data.payload?.headers?.find((h) => h.name?.toLowerCase() === "from")
       ?.value || "";
 
-  // Extract email body
-  let body = "";
-  if (message.data.payload?.body?.data) {
-    body = Buffer.from(message.data.payload.body.data, "base64").toString("utf-8");
-  } else if (message.data.payload?.parts) {
-    // Multi-part email
-    for (const part of message.data.payload.parts) {
-      if (part.mimeType === "text/plain" || part.mimeType === "text/html") {
-        if (part.body?.data) {
-          body += Buffer.from(part.body.data, "base64").toString("utf-8");
-        }
+  // Extract email body (recursively handle nested MIME parts)
+  let htmlBody = "";
+  let plainBody = "";
+
+  // Recursive function to extract text from all MIME parts
+  function extractTextFromPart(part: any) {
+    if (part.mimeType === "text/html" && part.body?.data) {
+      htmlBody += Buffer.from(part.body.data, "base64").toString("utf-8");
+    } else if (part.mimeType === "text/plain" && part.body?.data) {
+      plainBody += Buffer.from(part.body.data, "base64").toString("utf-8");
+    }
+
+    // Recursively process nested parts (for multipart/alternative, multipart/mixed, etc.)
+    if (part.parts && Array.isArray(part.parts)) {
+      for (const nestedPart of part.parts) {
+        extractTextFromPart(nestedPart);
       }
     }
   }
+
+  // Handle single-part email (body data directly in payload)
+  if (message.data.payload?.body?.data) {
+    const mimeType = message.data.payload.mimeType || "";
+    if (mimeType === "text/html") {
+      htmlBody = Buffer.from(message.data.payload.body.data, "base64").toString("utf-8");
+    } else {
+      plainBody = Buffer.from(message.data.payload.body.data, "base64").toString("utf-8");
+    }
+  }
+
+  // Handle multi-part email (recursively extract from all parts)
+  if (message.data.payload?.parts) {
+    for (const part of message.data.payload.parts) {
+      extractTextFromPart(part);
+    }
+  }
+
+  // Prefer HTML body (has more detail) but fallback to plain text
+  const body = htmlBody || plainBody;
 
   // Extract label IDs and convert to label names
   const labelIds = message.data.labelIds || [];
