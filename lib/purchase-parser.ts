@@ -654,6 +654,11 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
 
       // CRITICAL VALIDATION: Verify parsed items actually exist in the email body
       // This catches hallucinations and template reuse
+      // Extract email sender domain for brand matching
+      const emailDomain = emailFrom?.match(/@([^.]+\.)?([^.]+)\./)?.[2]?.toLowerCase() || 
+                         emailFrom?.match(/@([^.]+)/)?.[1]?.toLowerCase() || 
+                         null;
+      
       const validatedItems = filteredItems.filter(item => {
         if (!item.name) return false;
         
@@ -661,13 +666,35 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
         // This is critical because most order confirmation emails are HTML
         // Also extract text from alt attributes, data attributes, and other HTML attributes
         let cleanEmailBody = emailBody
-          // First, extract text from alt and title attributes before removing tags
+          // First, extract text from various HTML attributes before removing tags
           .replace(/alt=["']([^"']+)["']/gi, ' $1 ') // Extract alt text
           .replace(/title=["']([^"']+)["']/gi, ' $1 ') // Extract title text
-          .replace(/data-[^=]*=["']([^"']+)["']/gi, ' $1 ') // Extract data attributes
-          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') // Remove script tags
+          .replace(/aria-label=["']([^"']+)["']/gi, ' $1 ') // Extract aria-label text
+          .replace(/data-product-name=["']([^"']+)["']/gi, ' $1 ') // Extract data-product-name
+          .replace(/data-item-name=["']([^"']+)["']/gi, ' $1 ') // Extract data-item-name
+          .replace(/data-name=["']([^"']+)["']/gi, ' $1 ') // Extract data-name
+          .replace(/data-[^=]*=["']([^"']+)["']/gi, ' $1 ') // Extract other data attributes
+          // Extract JSON-LD structured data if present
+          .replace(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi, (_, json) => {
+            try {
+              const data = JSON.parse(json);
+              // Extract product names from structured data
+              if (data['@type'] === 'Order' || data['@type'] === 'Product') {
+                const items = data.orderedItem || data.itemListElement || [];
+                return ' ' + items.map((item: any) => 
+                  item.name || item.item?.name || item.product?.name || ''
+                ).filter(Boolean).join(' ') + ' ';
+              }
+              return '';
+            } catch {
+              return '';
+            }
+          })
+          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') // Remove remaining script tags
           .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '') // Remove style tags
-          .replace(/<[^>]+>/g, ' ') // Remove all HTML tags, replace with space
+          // Extract text content from common HTML elements before removing tags
+          .replace(/<(span|div|td|th|p|li|h[1-6])[^>]*>([^<]+)<\/\1>/gi, ' $2 ') // Extract text from common elements
+          .replace(/<[^>]+>/g, ' ') // Remove all remaining HTML tags, replace with space
           .replace(/&nbsp;/g, ' ') // Replace &nbsp; with space
           .replace(/&amp;/g, '&') // Decode &amp;
           .replace(/&lt;/g, '<') // Decode &lt;
@@ -681,6 +708,9 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
         
         const emailText = `${emailSubject} ${cleanEmailBody}`.toLowerCase();
         
+        // Log cleaned email text length for debugging
+        console.log(`   Cleaned email text length: ${cleanEmailBody.length} chars`);
+        
         // Known clothing brands - trust AI parsing more for these
         const trustedBrands = [
           "levi's", "levis", "levi", "nike", "adidas", "gap", "old navy", "banana republic",
@@ -689,9 +719,22 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
           "abercrombie", "american eagle", "urban outfitters", "anthropologie"
         ];
         
+        // Known clothing retailer domains - if email is from these domains, trust items from matching brands
+        const trustedDomains = [
+          "levi", "levis", "nike", "adidas", "gap", "oldnavy", "bananarepublic",
+          "nordstrom", "macy", "target", "walmart", "amazon", "zara", "hm",
+          "uniqlo", "jcrew", "madewell", "asos", "forever21", "hollister",
+          "abercrombie", "ae", "urbn", "anthropologie"
+        ];
+        
         const isTrustedBrand = item.brand && trustedBrands.some(brand => 
           item.brand!.toLowerCase().replace(/['"]/g, '').includes(brand) || 
           brand.includes(item.brand!.toLowerCase().replace(/['"]/g, ''))
+        );
+        
+        // Check if email sender is from a trusted clothing retailer domain
+        const isFromTrustedDomain = emailDomain && trustedDomains.some(domain => 
+          emailDomain.includes(domain) || domain.includes(emailDomain)
         );
         const itemNameLower = item.name.toLowerCase();
         
@@ -765,9 +808,20 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
         // This helps with cases where product names are formatted differently in HTML emails
         let brandTypePriceMatch = false;
         let brandTypeMatch = false;
+        let senderMatchesBrand = false;
+        
         if (item.brand && item.type) {
           const brandLower = item.brand.toLowerCase().replace(/['"]/g, ''); // Remove quotes/apostrophes
           const typeLower = item.type.toLowerCase();
+          
+          // Check if email sender domain matches brand (e.g., @levi.com matches "Levi's")
+          if (emailDomain) {
+            const brandWithoutApostrophe = brandLower.replace(/'/g, '');
+            senderMatchesBrand = emailDomain.includes(brandWithoutApostrophe) || 
+                               brandWithoutApostrophe.includes(emailDomain) ||
+                               emailDomain === 'levi' && brandLower.includes('levi') ||
+                               emailDomain === 'levis' && brandLower.includes('levi');
+          }
           
           // Check for brand variations (e.g., "Levi's" vs "Levis" vs "Levi")
           const brandVariations = [
@@ -775,16 +829,45 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
             brandLower.replace(/'/g, ''), // "levi's" -> "levis"
             brandLower.replace(/s$/, ''), // "levis" -> "levi"
             brandLower.split("'")[0], // "levi's" -> "levi"
+            brandLower.replace(/\s+/g, ''), // "levi s" -> "levis"
+            brandLower.replace(/'/g, ' '), // "levi's" -> "levi s"
           ];
           
-          const brandInEmail = brandVariations.some(brand => emailText.includes(brand));
+          // Also check if email sender contains brand name
+          if (emailFrom) {
+            const fromLower = emailFrom.toLowerCase();
+            brandVariations.push(...brandVariations.map(b => fromLower.includes(b) ? b : null).filter(Boolean) as string[]);
+          }
+          
+          const brandInEmail = brandVariations.some(brand => emailText.includes(brand)) || senderMatchesBrand;
           
           // Check for type variations (e.g., "pants" vs "jeans", "shirt" vs "t-shirt")
           const typeVariations: string[] = [
             typeLower,
             typeLower.replace(/-/g, ' '), // "t-shirt" -> "t shirt"
-            typeLower === 'pants' ? 'jeans' : '', // "pants" might be listed as "jeans"
-            typeLower === 'jeans' ? 'pants' : '', // "jeans" might be listed as "pants"
+            // Pants/jeans/trousers variations
+            typeLower === 'pants' ? 'jeans' : '',
+            typeLower === 'pants' ? 'trousers' : '',
+            typeLower === 'pants' ? 'denim' : '',
+            typeLower === 'jeans' ? 'pants' : '',
+            typeLower === 'jeans' ? 'trousers' : '',
+            typeLower === 'jeans' ? 'denim' : '',
+            typeLower === 'trousers' ? 'pants' : '',
+            typeLower === 'trousers' ? 'jeans' : '',
+            // Shirt variations
+            typeLower === 'shirt' ? 't-shirt' : '',
+            typeLower === 'shirt' ? 'tee' : '',
+            typeLower === 'shirt' ? 'top' : '',
+            typeLower === 't-shirt' ? 'shirt' : '',
+            typeLower === 't-shirt' ? 'tee' : '',
+            typeLower === 't-shirt' ? 'top' : '',
+            typeLower === 'tee' ? 'shirt' : '',
+            typeLower === 'tee' ? 't-shirt' : '',
+            // Jacket variations
+            typeLower === 'jacket' ? 'coat' : '',
+            typeLower === 'jacket' ? 'outerwear' : '',
+            typeLower === 'coat' ? 'jacket' : '',
+            typeLower === 'coat' ? 'outerwear' : '',
           ].filter((t): t is string => Boolean(t));
           
           const typeInEmail = typeVariations.some(type => emailText.includes(type));
@@ -816,21 +899,47 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
         // 4. Brand + type match AND we have at least 1 keyword match (weaker fallback for HTML emails)
         // 5. Trusted brand + type match (even without keyword match for known clothing brands)
         // 6. Trusted brand + any keyword match (very lenient for known brands)
+        // 7. SENDER-BASED TRUST: Email sender domain matches brand + valid type (NEW - most lenient for known retailers)
         const isValid = (matches >= requiredMatches && (itemKeywords.length > 0 || itemNameLower.length > 5)) ||
                        (isLikelySpecificProduct && fullNameMatch && matches >= Math.max(1, requiredMatches - 1)) ||
                        brandTypePriceMatch ||
                        (brandTypeMatch && matches >= 1) || // Accept if brand+type match and at least 1 keyword found
                        (isTrustedBrand && brandTypeMatch) || // Trust known brands: if brand+type match, accept
-                       (isTrustedBrand && item.brand && matches >= 1); // Trust known brands: if brand found and 1+ keyword, accept
+                       (isTrustedBrand && item.brand && matches >= 1) || // Trust known brands: if brand found and 1+ keyword, accept
+                       (senderMatchesBrand && brandTypeMatch && item.type); // NEW: Sender domain matches brand + valid type = accept (type already validated by isClothingItem filter)
         
         if (!isValid) {
           console.log(`❌ REJECTED - Item name "${item.name}" not found in email body`);
+          console.log(`   Email sender: ${emailFrom || 'unknown'}`);
+          console.log(`   Email domain: ${emailDomain || 'unknown'}`);
           console.log(`   Keywords searched: ${itemKeywords.join(', ')}`);
           console.log(`   Matches found: ${matches}, required: ${requiredMatches}`);
           console.log(`   Full name match: ${fullNameMatch}`);
           console.log(`   Trusted brand: ${isTrustedBrand ? 'YES' : 'NO'}`);
+          console.log(`   From trusted domain: ${isFromTrustedDomain ? 'YES' : 'NO'}`);
           if (item.brand && item.type) {
             console.log(`   Brand/Type fallback: ${brandTypeMatch ? 'matched' : 'not matched'}`);
+            console.log(`   Sender matches brand: ${senderMatchesBrand ? 'YES' : 'NO'}`);
+            if (item.brand) {
+              const brandLower = item.brand.toLowerCase().replace(/['"]/g, '');
+              const brandVariations = [
+                brandLower,
+                brandLower.replace(/'/g, ''),
+                brandLower.replace(/s$/, ''),
+                brandLower.split("'")[0],
+              ];
+              console.log(`   Brand variations checked: ${brandVariations.join(', ')}`);
+            }
+            if (item.type) {
+              const typeLower = item.type.toLowerCase();
+              const typeVariations: string[] = [
+                typeLower,
+                typeLower.replace(/-/g, ' '),
+                typeLower === 'pants' ? 'jeans' : '',
+                typeLower === 'jeans' ? 'pants' : '',
+              ].filter((t): t is string => Boolean(t));
+              console.log(`   Type variations checked: ${typeVariations.join(', ')}`);
+            }
             if (item.price) {
               console.log(`   Brand/Type/Price fallback: ${brandTypePriceMatch ? 'matched' : 'not matched'}`);
             }
@@ -839,12 +948,13 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
             console.log(`   Price verification: ${priceMatchDetails}`);
           }
           // Debug: show a snippet of the cleaned email text
-          const emailSnippet = emailText.substring(0, 500);
-          console.log(`   Email text snippet: ${emailSnippet}...`);
+          const emailSnippet = emailText.substring(0, 1000);
+          console.log(`   Email text snippet (first 1000 chars): ${emailSnippet}...`);
         } else if (!priceMatches && item.price) {
           console.log(`⚠️  WARNING - Item "${item.name}" found but ${priceMatchDetails}`);
         } else {
-          const matchReason = isTrustedBrand && brandTypeMatch ? 'trusted brand + type match' :
+          const matchReason = senderMatchesBrand && brandTypeMatch ? 'sender domain + brand + type match' :
+                             isTrustedBrand && brandTypeMatch ? 'trusted brand + type match' :
                              brandTypePriceMatch ? 'brand/type/price match' : 
                              brandTypeMatch && matches >= 1 ? 'brand/type + keyword match' :
                              isTrustedBrand && matches >= 1 ? 'trusted brand + keyword match' :
