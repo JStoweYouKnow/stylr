@@ -659,7 +659,12 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
         
         // Strip HTML tags and decode HTML entities for better text matching
         // This is critical because most order confirmation emails are HTML
+        // Also extract text from alt attributes, data attributes, and other HTML attributes
         let cleanEmailBody = emailBody
+          // First, extract text from alt and title attributes before removing tags
+          .replace(/alt=["']([^"']+)["']/gi, ' $1 ') // Extract alt text
+          .replace(/title=["']([^"']+)["']/gi, ' $1 ') // Extract title text
+          .replace(/data-[^=]*=["']([^"']+)["']/gi, ' $1 ') // Extract data attributes
           .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') // Remove script tags
           .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '') // Remove style tags
           .replace(/<[^>]+>/g, ' ') // Remove all HTML tags, replace with space
@@ -669,11 +674,25 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
           .replace(/&gt;/g, '>') // Decode &gt;
           .replace(/&quot;/g, '"') // Decode &quot;
           .replace(/&#39;/g, "'") // Decode &#39;
+          .replace(/&#(\d+);/g, (_, num) => String.fromCharCode(parseInt(num, 10))) // Decode numeric entities
           .replace(/&[a-z]+;/gi, ' ') // Replace other HTML entities with space
           .replace(/\s+/g, ' ') // Normalize whitespace
           .trim();
         
         const emailText = `${emailSubject} ${cleanEmailBody}`.toLowerCase();
+        
+        // Known clothing brands - trust AI parsing more for these
+        const trustedBrands = [
+          "levi's", "levis", "levi", "nike", "adidas", "gap", "old navy", "banana republic",
+          "nordstrom", "macy's", "macys", "target", "walmart", "amazon", "zara", "h&m", "hm",
+          "uniqlo", "j.crew", "jcrew", "madewell", "asos", "forever 21", "hollister",
+          "abercrombie", "american eagle", "urban outfitters", "anthropologie"
+        ];
+        
+        const isTrustedBrand = item.brand && trustedBrands.some(brand => 
+          item.brand!.toLowerCase().replace(/['"]/g, '').includes(brand) || 
+          brand.includes(item.brand!.toLowerCase().replace(/['"]/g, ''))
+        );
         const itemNameLower = item.name.toLowerCase();
         
         // Check if significant parts of the item name appear in the email
@@ -795,16 +814,21 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
         // 2. Full name matches and it's a specific product (trademark, etc.)
         // 3. Brand + type + price all match (strong fallback)
         // 4. Brand + type match AND we have at least 1 keyword match (weaker fallback for HTML emails)
+        // 5. Trusted brand + type match (even without keyword match for known clothing brands)
+        // 6. Trusted brand + any keyword match (very lenient for known brands)
         const isValid = (matches >= requiredMatches && (itemKeywords.length > 0 || itemNameLower.length > 5)) ||
                        (isLikelySpecificProduct && fullNameMatch && matches >= Math.max(1, requiredMatches - 1)) ||
                        brandTypePriceMatch ||
-                       (brandTypeMatch && matches >= 1); // Accept if brand+type match and at least 1 keyword found
+                       (brandTypeMatch && matches >= 1) || // Accept if brand+type match and at least 1 keyword found
+                       (isTrustedBrand && brandTypeMatch) || // Trust known brands: if brand+type match, accept
+                       (isTrustedBrand && item.brand && matches >= 1); // Trust known brands: if brand found and 1+ keyword, accept
         
         if (!isValid) {
           console.log(`❌ REJECTED - Item name "${item.name}" not found in email body`);
           console.log(`   Keywords searched: ${itemKeywords.join(', ')}`);
           console.log(`   Matches found: ${matches}, required: ${requiredMatches}`);
           console.log(`   Full name match: ${fullNameMatch}`);
+          console.log(`   Trusted brand: ${isTrustedBrand ? 'YES' : 'NO'}`);
           if (item.brand && item.type) {
             console.log(`   Brand/Type fallback: ${brandTypeMatch ? 'matched' : 'not matched'}`);
             if (item.price) {
@@ -814,11 +838,16 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
           if (item.price) {
             console.log(`   Price verification: ${priceMatchDetails}`);
           }
+          // Debug: show a snippet of the cleaned email text
+          const emailSnippet = emailText.substring(0, 500);
+          console.log(`   Email text snippet: ${emailSnippet}...`);
         } else if (!priceMatches && item.price) {
           console.log(`⚠️  WARNING - Item "${item.name}" found but ${priceMatchDetails}`);
         } else {
-          const matchReason = brandTypePriceMatch ? 'brand/type/price match' : 
+          const matchReason = isTrustedBrand && brandTypeMatch ? 'trusted brand + type match' :
+                             brandTypePriceMatch ? 'brand/type/price match' : 
                              brandTypeMatch && matches >= 1 ? 'brand/type + keyword match' :
+                             isTrustedBrand && matches >= 1 ? 'trusted brand + keyword match' :
                              fullNameMatch ? 'full name match' : 
                              `${matches} keyword matches`;
           console.log(`✅ VALIDATED - Item "${item.name}" verified in email (${matchReason})`);
