@@ -245,34 +245,10 @@ export async function searchPurchaseEmails(userId: string, daysBack: number = 30
 
   console.log(`Total found: ${allLabeledMessages.length} unique emails with shopping labels`);
   
+  // RESTRICTED: Only return emails with shopping labels (user must tag emails)
   const labeledMessages = allLabeledMessages;
-
-  // Priority 2: Emails with order confirmation subjects (even without labels)
-  const subjectQuery = `
-    (
-      subject:("order confirmation" OR "order receipt" OR "order placed" OR "purchase confirmation" OR "thank you for your order" OR "your order #")
-      -subject:("shipping" OR "shipped" OR "tracking" OR "delivery" OR "out for delivery" OR "on the way")
-      -subject:("abandoned" OR "cart" OR "wishlist" OR "saved for later")
-      -subject:("marketing" OR "promotion" OR "deal" OR "sale" OR "discount" OR "coupon")
-    )
-    after:${afterDate}
-  `.trim().replace(/\s+/g, " ");
-
-  // Search for subject-based emails (lower priority, exclude already found)
-  console.log('Gmail search query (subject):', subjectQuery);
-  const subjectResponse = await gmail.users.messages.list({
-    userId: "me",
-    q: subjectQuery,
-    maxResults: 50,
-  });
-
-  // Combine results, prioritizing labeled emails
-  const subjectMessages = (subjectResponse.data.messages || []).filter(
-    (m) => m.id && !labeledIds.has(m.id)
-  );
-
-  const allMessages = [...labeledMessages, ...subjectMessages];
-  console.log(`Found ${allMessages.length} total potential purchase emails (${labeledMessages.length} labeled, ${subjectMessages.length} subject-matched)`);
+  const allMessages = labeledMessages;
+  console.log(`Found ${allMessages.length} emails with shopping labels (restricted to labeled emails only)`);
 
   // Log label details for first few labeled emails (for debugging)
   if (labeledMessages.length > 0) {
@@ -376,12 +352,7 @@ export async function searchPurchaseEmails(userId: string, daysBack: number = 30
       
       if (labeledFromFallback > 0) {
         console.log(`  ✅ Found ${labeledFromFallback} additional labeled emails via fallback approach`);
-        // Rebuild allMessages with updated labeledMessages
-        const updatedLabeledIds = new Set(labeledMessages.map((m) => m.id).filter((id): id is string => !!id));
-        const subjectMessages = (subjectResponse.data.messages || []).filter(
-          (m) => m.id && !updatedLabeledIds.has(m.id)
-        );
-        return [...labeledMessages, ...subjectMessages];
+        return labeledMessages;
       } else {
         console.log('  ⚠️  Fallback approach also found no labeled emails.');
         console.log('  Possible reasons:');
@@ -611,7 +582,7 @@ export function shouldProcessEmail(subject: string, body: string, labels: string
     }
   }
 
-  // INCLUDE: Emails with shopping labels (highest priority - trust user's labeling)
+  // RESTRICTED: Only process emails with shopping labels (user must tag emails)
   // Gmail labels are case-sensitive, so check both exact match and case-insensitive
   const shoppingLabels = ["shopping", "orders", "order confirmations", "receipts", "purchases", "amazon", "e-commerce"];
   const hasShoppingLabel = labels.some(label => {
@@ -627,23 +598,8 @@ export function shouldProcessEmail(subject: string, body: string, labels: string
     return { shouldProcess: true, reason: `Email has shopping label: ${labels.find(l => shoppingLabels.some(sl => l.toLowerCase().includes(sl.toLowerCase())))}` };
   }
 
-  // INCLUDE: Order confirmation keywords in subject
-  const orderKeywords = [
-    "order confirmation",
-    "order receipt",
-    "order placed",
-    "purchase confirmation",
-    "thank you for your order",
-    "your order #",
-    "order number",
-  ];
-  
-  if (orderKeywords.some(keyword => subjectLower.includes(keyword))) {
-    return { shouldProcess: true, reason: "Order confirmation email" };
-  }
-
-  // Default: Process if it made it through the search query
-  return { shouldProcess: true, reason: "Matches search criteria" };
+  // REJECT: No shopping label found - user must tag emails to process them
+  return { shouldProcess: false, reason: "Email does not have a shopping label - please tag emails with 'Shopping', 'Receipts', 'Orders', etc." };
 }
 
 /**
