@@ -32,12 +32,22 @@ function extractProductImages(html: string): Array<{url: string, alt: string, co
     const productContainers = [
       'table[class*="product"]',
       'table[class*="item"]',
+      'table[class*="order"]',
       'div[class*="product"]',
       'div[class*="item"]',
+      'div[class*="order-item"]',
       'td[class*="product"]',
       'td[class*="item"]',
+      'tr[class*="product"]',
+      'tr[class*="item"]',
       '[data-product-id]',
       '[data-item-id]',
+      // Nordstrom-specific: look for images in order detail sections
+      'table[class*="order-detail"]',
+      'div[class*="order-detail"]',
+      // Banana Republic: look for product rows
+      'table[class*="product-row"]',
+      'tr[class*="product-row"]',
     ];
 
     const containerImages = new Set<string>(); // Track images found in product containers
@@ -45,20 +55,39 @@ function extractProductImages(html: string): Array<{url: string, alt: string, co
     productContainers.forEach(selector => {
       $(selector).each((_, container) => {
         const $container = $(container);
-        $container.find('img').each((_, el) => {
-          const $img = $(el);
-          const src = $img.attr('src') || $img.attr('data-src') || '';
-          if (src && (src.startsWith('http://') || src.startsWith('https://'))) {
-            const alt = $img.attr('alt') || '';
-            const containerText = $container.text().substring(0, 200).trim();
-            containerImages.add(src);
-            productImages.push({
-              url: src,
-              alt: alt,
-              context: containerText
-            });
-          }
-        });
+        const containerText = $container.text().toLowerCase();
+        
+        // Only include containers that have product information (price, product name, etc.)
+        const hasProductInfo = containerText.includes('$') || containerText.match(/\d+\.\d{2}/) ||
+                              containerText.match(/\b(jacket|shirt|pants|jeans|hat|shoes|dress|sweater|hoodie|overalls|jacket)\b/i);
+        
+        if (hasProductInfo) {
+          $container.find('img').each((_, el) => {
+            const $img = $(el);
+            const src = $img.attr('src') || $img.attr('data-src') || '';
+            if (src && (src.startsWith('http://') || src.startsWith('https://'))) {
+              const alt = $img.attr('alt') || '';
+              const fullContainerText = $container.text().substring(0, 300).trim();
+              
+              // Skip marketing images even in product containers
+              const altLower = alt.toLowerCase();
+              const srcLower = src.toLowerCase();
+              const isMarketing = altLower.includes('club') || altLower.includes('rewards') ||
+                                 altLower.includes('app') || altLower.includes('download') ||
+                                 altLower.includes('display images to show real-time content');
+              
+              if (!isMarketing) {
+                containerImages.add(src);
+                // Add to beginning for highest priority
+                productImages.unshift({
+                  url: src,
+                  alt: alt,
+                  context: fullContainerText
+                });
+              }
+            }
+          });
+        }
       });
     });
 
@@ -86,6 +115,15 @@ function extractProductImages(html: string): Array<{url: string, alt: string, co
         const isIcon = altLower.includes('icon') || srcLower.includes('icon') || altLower.includes('social');
         const isBanner = altLower.includes('banner') || altLower.includes('header');
         
+        // EXCLUDE marketing/promotional images
+        const isMarketing = altLower.includes('club') || altLower.includes('rewards') || altLower.includes('points') ||
+                           altLower.includes('earn') || altLower.includes('get rewards') ||
+                           altLower.includes('app') || altLower.includes('download') ||
+                           altLower.includes('google play') || altLower.includes('app store') ||
+                           altLower.includes('display images to show real-time content') || // Generic placeholder alt text
+                           srcLower.includes('nordyclub') || srcLower.includes('rewards') ||
+                           srcLower.includes('app_') || srcLower.includes('download');
+        
         // More specific tracking pixel detection - only exclude actual 1x1 tracking pixels, not product images
         // Nordstrom uses everestengagement.com for product images, so don't exclude all engagement.com URLs
         const isTrackingPixel = (srcLower.includes('pixel') || srcLower.includes('beacon') || 
@@ -98,6 +136,13 @@ function extractProductImages(html: string): Array<{url: string, alt: string, co
                                (srcLower.match(/[\d]+x[\d]+/) || srcLower.includes('1x1') || srcLower.includes('spacer'));
         
         const isButton = altLower.includes('button') || srcLower.includes('button');
+        
+        // Check if image is near product information (product name, price, SKU)
+        const parent = $img.parent();
+        const parentText = parent.text().toLowerCase();
+        const hasProductInfo = parentText.includes('$') || parentText.match(/\d+\.\d{2}/) || // Price
+                              parentText.match(/sku|style|item\s*#|product\s*#/i) || // SKU/Item number
+                              parentText.match(/\b(jacket|shirt|pants|jeans|hat|shoes|dress|sweater|hoodie|overalls)\b/i); // Product type
         
         // Check image dimensions from URL or attributes
         const width = parseInt($img.attr('width') || '0');
@@ -123,21 +168,30 @@ function extractProductImages(html: string): Array<{url: string, alt: string, co
         const looksLikeProduct = srcLower.includes('product') || srcLower.includes('item') ||
                                 altLower.includes('product') || altLower.includes('item') ||
                                 srcLower.includes('catalog') || srcLower.includes('image') ||
-                                // Nordstrom-specific patterns
-                                srcLower.includes('nordstrom') || srcLower.includes('everestengagement.com');
+                                // Nordstrom-specific patterns (but exclude marketing)
+                                (srcLower.includes('nordstrom') && !isMarketing) || 
+                                (srcLower.includes('everestengagement.com') && !isMarketing) ||
+                                // Banana Republic product images
+                                (srcLower.includes('bananarepublic.com/p/rp/') && !isMarketing);
 
-        if (!isLogo && !isIcon && !isBanner && !isTrackingPixel && !isClickTracking && 
+        if (!isLogo && !isIcon && !isBanner && !isMarketing && !isTrackingPixel && !isClickTracking && 
             !isButton && !isTooSmall && !isSpacer && !isNavigation) {
-          // Get context from parent elements
-          const parent = $img.parent();
-          const parentText = parent.text().substring(0, 100).trim();
+          // Get context from parent elements (more context for better matching)
+          const parentText = parent.text().substring(0, 200).trim();
           
-          // Prioritize images that look like products
+          // Prioritize images that look like products AND are near product information
           const imageData = {url: src, alt: alt, context: parentText};
-          if (looksLikeProduct) {
-            // Add product-looking images at the beginning
+          if (looksLikeProduct && hasProductInfo) {
+            // Highest priority: product-looking images near product info
             productImages.unshift(imageData);
+          } else if (hasProductInfo) {
+            // Medium priority: images near product info (even if URL doesn't look like product)
+            productImages.splice(Math.min(3, productImages.length), 0, imageData);
+          } else if (looksLikeProduct) {
+            // Lower priority: product-looking images but not near product info
+            productImages.push(imageData);
           } else {
+            // Lowest priority: other images
             productImages.push(imageData);
           }
         }
@@ -436,10 +490,19 @@ export async function parseReceiptWithAI(
 
     // Append product images to extracted body so AI can match them to products
     if (productImages.length > 0) {
-      extractedBody += '\n\nPRODUCT IMAGES:\n';
-      productImages.forEach(img => {
-        extractedBody += `<img src="${img.url}" alt="${img.alt}" context="${img.context}">\n`;
+      extractedBody += '\n\n=== PRODUCT IMAGES (match these to items above) ===\n';
+      productImages.forEach((img, index) => {
+        // Format images with clear context for better matching
+        const contextPreview = img.context.substring(0, 150).replace(/\s+/g, ' ').trim();
+        extractedBody += `Image ${index + 1}:\n`;
+        extractedBody += `  URL: ${img.url}\n`;
+        extractedBody += `  Alt text: "${img.alt}"\n`;
+        if (contextPreview) {
+          extractedBody += `  Context (nearby text): "${contextPreview}..."\n`;
+        }
+        extractedBody += '\n';
       });
+      extractedBody += '=== END PRODUCT IMAGES ===\n';
     }
   }
 
@@ -617,20 +680,22 @@ CRITICAL EXTRACTION RULES:
 6. Look for order details, line items, product descriptions in structured blocks IN THIS EMAIL
 7. Use null for fields you cannot find - DO NOT make up data or use placeholder values
 8. Extract product image URLs when available:
-   - Look for <img src="..."> tags in the "PRODUCT IMAGES:" section at the end of the email
-   - Match images to products by:
-     * Checking if the image's "alt" attribute contains the product name, brand, or color
-     * Checking if the image's "context" field contains text near the product in the email
-     * Using image position/order (first image likely matches first product, etc.)
-   - Extract the FULL URL from the src attribute (must start with http:// or https://)
-   - For each product item, try to find a matching image and include its URL in imageUrl field
-   - If multiple images match a product, use the first/best match
-   - If no clear image match for a product, use null (do not make up URLs or reuse images)
-   - Priority matching order:
-     1. Alt text contains exact product name
-     2. Alt text contains brand + product type (e.g., "Nike shoes")
-     3. Context text contains product name
-     4. Sequential matching (1st image → 1st product)
+   - Look for the "PRODUCT IMAGES" section at the end of the email
+   - Each image is numbered and includes: URL, Alt text, and Context (nearby text from email)
+   - Match images to products by checking:
+     * Does the Alt text contain the product name, brand, color, or product type?
+     * Does the Context text contain the product name, price, or product details?
+     * Is the image position/order aligned with product order (Image 1 → first product)?
+   - IMPORTANT: Images are sorted by priority - earlier images are more likely to be product images
+   - For each product item, find the BEST matching image:
+     * First check if Alt text or Context contains the exact product name
+     * Then check if Alt text or Context contains the brand + product type
+     * Then check if Context contains the price or product details
+     * Finally, use sequential matching (Image 1 → first product, Image 2 → second product)
+   - Extract the FULL URL (must start with http:// or https://)
+   - If multiple images match, use the FIRST/BEST match (earlier images have higher priority)
+   - If no clear image match for a product, use null (do not make up URLs or reuse images from other products)
+   - CRITICAL: Do not use marketing images (club, rewards, app download) - only use actual product images
 
 CRITICAL: DO NOT REUSE EXAMPLES OR TEMPLATES
 - DO NOT copy item names from examples or previous emails
