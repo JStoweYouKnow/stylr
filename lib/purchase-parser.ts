@@ -189,7 +189,7 @@ async function callClaudeAPI(
             // Last retry failed, fallback to Haiku if we were using Sonnet
             if (model === "claude-sonnet-4-5-20250929") {
               console.log(`⚠️  Rate limit persists after ${retries} retries, falling back to Claude Haiku`);
-              return callClaudeAPI(prompt, "claude-3-5-haiku-20241022", systemMessage, 1);
+              return callClaudeAPI(prompt, "claude-3-haiku-20240307", systemMessage, 1);
             }
             throw new Error(`Claude API error: ${response.status} - Rate limit exceeded`);
           }
@@ -529,7 +529,7 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
     // Determine model: use Haiku by default, Sonnet as fallback
     const preferredModel = process.env.CLAUDE_MODEL === 'sonnet' 
       ? "claude-sonnet-4-5-20250929"
-      : "claude-3-5-haiku-20241022";
+      : "claude-3-haiku-20240307";
     
     console.log(`Using Claude ${preferredModel.includes('haiku') ? 'Haiku' : 'Sonnet 4.5'} for receipt parsing`);
     console.log(`=== EMAIL BEING PARSED ===`);
