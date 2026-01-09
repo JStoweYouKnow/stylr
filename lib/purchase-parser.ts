@@ -569,6 +569,20 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
     try {
       let parsed = JSON.parse(jsonText) as ParsedPurchase;
 
+      // CRITICAL: Check for cross-contamination - order number mismatch indicates AI is mixing emails
+      // Extract order number from email subject/body to verify
+      const emailOrderNumberMatch = (emailSubject + ' ' + extractedBody.substring(0, 500)).match(/(?:order|#|number)[\s:]*([A-Z0-9\-]{4,})/i);
+      const emailOrderNumber = emailOrderNumberMatch?.[1]?.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      
+      if (parsed.orderNumber && emailOrderNumber) {
+        const parsedOrderNumberClean = parsed.orderNumber.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (parsedOrderNumberClean !== emailOrderNumber && parsedOrderNumberClean.length > 3 && emailOrderNumber.length > 3) {
+          console.log(`⚠️  WARNING: Order number mismatch! Email has "${emailOrderNumber}" but AI extracted "${parsed.orderNumber}"`);
+          console.log(`   This indicates AI cross-contamination - clearing items to prevent wrong data`);
+          parsed.items = [];
+        }
+      }
+
       // Fallback to Sonnet if Haiku returned empty items but there's an order confirmation
       if (modelUsed.includes('haiku') && 
           (!parsed.items || parsed.items.length === 0) && 
@@ -583,6 +597,15 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
           }
           sonnetJsonText = sonnetJsonText.replace(/^```\n?/, "").replace(/\n?```$/, "");
           const sonnetParsed = JSON.parse(sonnetJsonText) as ParsedPurchase;
+          
+          // Check order number match for Sonnet result too
+          if (sonnetParsed.orderNumber && emailOrderNumber) {
+            const sonnetOrderNumberClean = sonnetParsed.orderNumber.toUpperCase().replace(/[^A-Z0-9]/g, '');
+            if (sonnetOrderNumberClean !== emailOrderNumber && sonnetOrderNumberClean.length > 3 && emailOrderNumber.length > 3) {
+              console.log(`⚠️  Sonnet also has order number mismatch, rejecting`);
+              sonnetParsed.items = [];
+            }
+          }
           
           // Only use Sonnet result if it found items
           if (sonnetParsed.items && sonnetParsed.items.length > 0) {
@@ -901,7 +924,13 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
         // If email is from a specific brand, reject items from obviously different brands
         // This prevents AI from extracting Nordstrom items from a Grace Eleyae email
         if (emailFrom && item.brand) {
-          const emailDomainForBrandCheck = emailFrom.match(/@([^.]+)/)?.[1]?.toLowerCase();
+          // Extract domain more intelligently - get the actual brand domain, not subdomain
+          // e.g., info@info.levi.com -> "levi", not "info"
+          const domainMatch = emailFrom.match(/@([^.]+\.)*([^.]+)\.([^.]+)/);
+          const emailDomainForBrandCheck = domainMatch 
+            ? (domainMatch[2]?.toLowerCase() || domainMatch[1]?.replace(/\.$/, '').toLowerCase() || emailFrom.match(/@([^.]+)/)?.[1]?.toLowerCase())
+            : emailFrom.match(/@([^.]+)/)?.[1]?.toLowerCase();
+          
           const itemBrandLower = item.brand.toLowerCase().replace(/['\s]/g, ''); // "Lands' End" -> "landsend"
           const storeLower = parsed.store?.toLowerCase().replace(/['\s]/g, '') || '';
 
@@ -912,25 +941,39 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
 
           // Check if email sender is a specific brand (not a marketplace)
           if (emailDomainForBrandCheck && !isMarketplaceEmail) {
+            // Check if domain matches brand (handle subdomains like info.levi.com -> levi)
+            // Also check all parts of the domain (e.g., "info.levi.com" contains "levi")
+            const domainParts = emailFrom.match(/@([^>]+)/)?.[1]?.toLowerCase().split('.') || [];
+            const domainContainsBrand = domainParts.some(part => 
+              itemBrandLower.includes(part) || part.includes(itemBrandLower) ||
+              storeLower.includes(part) || part.includes(storeLower)
+            );
+            
             // Email sender brand should roughly match item brand OR store name
             const senderBrandMatches = itemBrandLower.includes(emailDomainForBrandCheck) ||
                                       emailDomainForBrandCheck.includes(itemBrandLower) ||
                                       storeLower.includes(emailDomainForBrandCheck) ||
-                                      emailDomainForBrandCheck.includes(storeLower);
+                                      emailDomainForBrandCheck.includes(storeLower) ||
+                                      domainContainsBrand;
 
-            // Special case: "levi.com" should match "Levi's"
+            // Special case: "levi.com" or "info.levi.com" should match "Levi's"
             const normalizedDomain = emailDomainForBrandCheck.replace(/s$/, '');
             const normalizedBrand = itemBrandLower.replace(/s$/, '');
             const normalizedStore = storeLower.replace(/s$/, '');
             const normalizedMatches = normalizedBrand.includes(normalizedDomain) ||
                                      normalizedDomain.includes(normalizedBrand) ||
                                      normalizedStore.includes(normalizedDomain) ||
-                                     normalizedDomain.includes(normalizedStore);
+                                     normalizedDomain.includes(normalizedStore) ||
+                                     domainParts.some(part => {
+                                       const normalizedPart = part.replace(/s$/, '');
+                                       return normalizedBrand.includes(normalizedPart) || normalizedPart.includes(normalizedBrand) ||
+                                              normalizedStore.includes(normalizedPart) || normalizedPart.includes(normalizedStore);
+                                     });
 
             if (!senderBrandMatches && !normalizedMatches) {
               console.log(`❌ REJECTED - Brand mismatch: Email from "${emailFrom}" but item brand is "${item.brand}"`);
               console.log(`   This indicates AI cross-contamination (extracting items from wrong email)`);
-              console.log(`   Email domain: ${emailDomainForBrandCheck}, Item brand: ${itemBrandLower}, Store: ${storeLower}`);
+              console.log(`   Email domain: ${emailDomainForBrandCheck}, Domain parts: ${domainParts.join(', ')}, Item brand: ${itemBrandLower}, Store: ${storeLower}`);
               return false;
             }
           }
@@ -1088,13 +1131,19 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
           const brandLower = item.brand.toLowerCase().replace(/['"]/g, ''); // Remove quotes/apostrophes
           const typeLower = item.type.toLowerCase();
           
-          // Check if email sender domain matches brand (e.g., @levi.com matches "Levi's")
+          // Check if email sender domain matches brand (e.g., @levi.com or @info.levi.com matches "Levi's")
           if (emailDomain) {
             const brandWithoutApostrophe = brandLower.replace(/'/g, '');
+            // Extract all domain parts to check subdomains (e.g., "info.levi.com" -> ["info", "levi", "com"])
+            const domainParts = emailFrom?.match(/@([^>]+)/)?.[1]?.toLowerCase().split('.') || [];
+            
             senderMatchesBrand = emailDomain.includes(brandWithoutApostrophe) || 
                                brandWithoutApostrophe.includes(emailDomain) ||
-                               emailDomain === 'levi' && brandLower.includes('levi') ||
-                               emailDomain === 'levis' && brandLower.includes('levi');
+                               // Check if any domain part matches brand (handles subdomains)
+                               domainParts.some(part => 
+                                 part.includes(brandWithoutApostrophe) || brandWithoutApostrophe.includes(part) ||
+                                 (part === 'levi' || part === 'levis') && brandLower.includes('levi')
+                               );
           }
           
           // Check for brand variations (e.g., "Levi's" vs "Levis" vs "Levi")
