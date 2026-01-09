@@ -28,13 +28,53 @@ function extractProductImages(html: string): Array<{url: string, alt: string, co
     const productImages: Array<{url: string, alt: string, context: string}> = [];
     const allImages: Array<{url: string, alt: string}> = [];
 
+    // First, try to find images in product-specific containers (more reliable)
+    const productContainers = [
+      'table[class*="product"]',
+      'table[class*="item"]',
+      'div[class*="product"]',
+      'div[class*="item"]',
+      'td[class*="product"]',
+      'td[class*="item"]',
+      '[data-product-id]',
+      '[data-item-id]',
+    ];
+
+    const containerImages = new Set<string>(); // Track images found in product containers
+
+    productContainers.forEach(selector => {
+      $(selector).each((_, container) => {
+        const $container = $(container);
+        $container.find('img').each((_, el) => {
+          const $img = $(el);
+          const src = $img.attr('src') || $img.attr('data-src') || '';
+          if (src && (src.startsWith('http://') || src.startsWith('https://'))) {
+            const alt = $img.attr('alt') || '';
+            const containerText = $container.text().substring(0, 200).trim();
+            containerImages.add(src);
+            productImages.push({
+              url: src,
+              alt: alt,
+              context: containerText
+            });
+          }
+        });
+      });
+    });
+
+    // Then, scan all images and filter (but prioritize container images)
     $('img').each((_, el) => {
       const $img = $(el);
-      const src = $img.attr('src') || '';
+      const src = $img.attr('src') || $img.attr('data-src') || '';
       const alt = $img.attr('alt') || '';
 
       // Track all images with valid URLs for debugging
       if (src && (src.startsWith('http://') || src.startsWith('https://'))) {
+        // Skip if already found in product container
+        if (containerImages.has(src)) {
+          return;
+        }
+
         allImages.push({url: src, alt: alt});
 
         // More lenient filtering - exclude only obvious non-product images
@@ -42,18 +82,64 @@ function extractProductImages(html: string): Array<{url: string, alt: string, co
         const srcLower = src.toLowerCase();
 
         // EXCLUDE images that are clearly not products
-        const isLogo = altLower.includes('logo') || srcLower.includes('logo');
+        const isLogo = altLower.includes('logo') || (srcLower.includes('logo') && !srcLower.includes('product'));
         const isIcon = altLower.includes('icon') || srcLower.includes('icon') || altLower.includes('social');
         const isBanner = altLower.includes('banner') || altLower.includes('header');
-        const isTracking = srcLower.includes('tracking') || srcLower.includes('pixel') || srcLower.includes('beacon');
+        
+        // More specific tracking pixel detection - only exclude actual 1x1 tracking pixels, not product images
+        // Nordstrom uses everestengagement.com for product images, so don't exclude all engagement.com URLs
+        const isTrackingPixel = (srcLower.includes('pixel') || srcLower.includes('beacon') || 
+                                 srcLower.includes('/open.aspx') || srcLower.includes('/track') ||
+                                 srcLower.includes('analytics')) && 
+                                (srcLower.match(/[\d]+x[\d]+/) || srcLower.includes('1x1') || srcLower.includes('spacer'));
+        
+        // Only exclude click tracking URLs if they're clearly not product images (small size indicators)
+        const isClickTracking = srcLower.includes('click.') && 
+                               (srcLower.match(/[\d]+x[\d]+/) || srcLower.includes('1x1') || srcLower.includes('spacer'));
+        
         const isButton = altLower.includes('button') || srcLower.includes('button');
-        const isTooSmall = srcLower.match(/\d+x\d+/) && parseInt(srcLower.match(/(\d+)x\d+/)?.[1] || '1000') < 50;
+        
+        // Check image dimensions from URL or attributes
+        const width = parseInt($img.attr('width') || '0');
+        const height = parseInt($img.attr('height') || '0');
+        const urlSizeMatch = srcLower.match(/(\d+)x(\d+)/);
+        const urlWidth = urlSizeMatch ? parseInt(urlSizeMatch[1]) : 0;
+        const urlHeight = urlSizeMatch ? parseInt(urlSizeMatch[2]) : 0;
+        const isTooSmall = (width > 0 && width < 50) || (height > 0 && height < 50) ||
+                          (urlWidth > 0 && urlWidth < 50) || (urlHeight > 0 && urlHeight < 50);
 
-        if (!isLogo && !isIcon && !isBanner && !isTracking && !isButton && !isTooSmall) {
+        // Check if image is a spacer or placeholder (very common in email templates)
+        const isSpacer = srcLower.includes('spacer') || srcLower.includes('blank.gif') ||
+                        srcLower.includes('transparent.png') || srcLower.includes('1x1') ||
+                        (width === 1 && height === 1);
+
+        // Exclude navigation, footer, and header images
+        const isNavigation = srcLower.includes('/nav') || srcLower.includes('navigation') ||
+                            (srcLower.includes('footer') && !srcLower.includes('product')) ||
+                            (srcLower.includes('header') && !srcLower.includes('product')) ||
+                            altLower.includes('navigation');
+
+        // INCLUDE images that look like products (have product-related keywords in URL or alt)
+        const looksLikeProduct = srcLower.includes('product') || srcLower.includes('item') ||
+                                altLower.includes('product') || altLower.includes('item') ||
+                                srcLower.includes('catalog') || srcLower.includes('image') ||
+                                // Nordstrom-specific patterns
+                                srcLower.includes('nordstrom') || srcLower.includes('everestengagement.com');
+
+        if (!isLogo && !isIcon && !isBanner && !isTrackingPixel && !isClickTracking && 
+            !isButton && !isTooSmall && !isSpacer && !isNavigation) {
           // Get context from parent elements
           const parent = $img.parent();
           const parentText = parent.text().substring(0, 100).trim();
-          productImages.push({url: src, alt: alt, context: parentText});
+          
+          // Prioritize images that look like products
+          const imageData = {url: src, alt: alt, context: parentText};
+          if (looksLikeProduct) {
+            // Add product-looking images at the beginning
+            productImages.unshift(imageData);
+          } else {
+            productImages.push(imageData);
+          }
         }
       }
     });
@@ -61,6 +147,22 @@ function extractProductImages(html: string): Array<{url: string, alt: string, co
     console.log(`📷 Image extraction: Found ${allImages.length} total images, ${productImages.length} likely product images`);
     if (productImages.length > 0) {
       console.log(`   First 3 product images: ${productImages.slice(0, 3).map(img => `\n      - ${img.url.substring(0, 80)}... (alt: "${img.alt}")`).join('')}`);
+    } else if (allImages.length > 0) {
+      console.log(`   ⚠️  All ${allImages.length} images were filtered out. Sample reasons:`);
+      // Show first 3 filtered images with their URLs truncated
+      allImages.slice(0, 3).forEach(img => {
+        const srcLower = img.url.toLowerCase();
+        const altLower = img.alt.toLowerCase();
+        let reason = 'unknown';
+        if (srcLower.includes('logo') || altLower.includes('logo')) reason = 'logo';
+        else if (srcLower.includes('icon') || altLower.includes('icon')) reason = 'icon';
+        else if (srcLower.includes('banner') || altLower.includes('header')) reason = 'banner';
+        else if (srcLower.includes('tracking') || srcLower.includes('pixel') || srcLower.includes('beacon')) reason = 'tracking';
+        else if (srcLower.includes('button') || altLower.includes('button')) reason = 'button';
+        else if (srcLower.includes('spacer') || srcLower.includes('blank.gif') || srcLower.includes('1x1')) reason = 'spacer';
+        else if (srcLower.match(/\d+x\d+/) && parseInt(srcLower.match(/(\d+)x\d+/)?.[1] || '1000') < 50) reason = 'too small';
+        console.log(`      - ${img.url.substring(0, 60)}... (filtered: ${reason}, alt: "${img.alt.substring(0, 30)}")`);
+      });
     }
 
     return productImages;
