@@ -22,21 +22,25 @@ export async function parseReceiptWithAI(
   emailSubject: string,
   emailBody: string
 ): Promise<ParsedPurchase> {
-  const prompt = `Extract purchase information from this email receipt.
+  const prompt = `You are extracting clothing purchases from ORDER CONFIRMATION emails ONLY.
 
 Subject: ${emailSubject}
 
 Body:
 ${emailBody.substring(0, 4000)} // Limit body length
 
+FIRST: Verify this is a CONFIRMED ORDER email (order confirmation, receipt, or order placed).
+- If this is NOT a confirmed order (e.g., abandoned cart, wishlist, marketing email), return {"items": [], ...other fields...}
+- Only extract from CONFIRMED purchases that have already been placed/ordered
+
 Return a JSON object with this exact structure:
 {
   "items": [
     {
-      "name": "Item name (e.g., 'Navy Blazer', 'White Cotton T-Shirt')",
+      "name": "Item name (e.g., 'Navy Blazer', 'Men's Red Tab Overalls')",
       "quantity": 1,
       "price": 49.99,
-      "type": "clothing type (shirt/pants/dress/shoes/jacket/sweater/etc)",
+      "type": "clothing type (shirt/pants/overalls/dress/shoes/jacket/sweater/etc)",
       "color": "primary color if mentioned",
       "brand": "brand name if mentioned"
     }
@@ -47,14 +51,14 @@ Return a JSON object with this exact structure:
   "total": 149.99
 }
 
-CRITICAL: THIS IS A CLOTHING WARDROBE APP. ONLY EXTRACT ITEMS YOU CAN WEAR ON YOUR BODY.
+CRITICAL: THIS IS A CLOTHING WARDROBE APP. ONLY EXTRACT WEARABLE CLOTHING FROM CONFIRMED ORDERS.
 
 ✅ INCLUDE (things you can WEAR):
-- Clothing: shirts, pants, jeans, dresses, skirts, shorts, jackets, coats, sweaters, hoodies, t-shirts, blouses, suits, blazers
+- Clothing: shirts, pants, jeans, overalls, dresses, skirts, shorts, jackets, coats, sweaters, hoodies, t-shirts, blouses, suits, blazers, jumpsuits, rompers
 - Footwear: shoes, boots, sneakers, sandals, heels, flats, loafers
-- Accessories that you WEAR: hats, caps, beanies, fashion scarves, fashion belts, gloves
-- Intimates: socks, underwear, bras, lingerie
-- Active/Swim: activewear, swimwear, athletic clothing
+- Accessories that you WEAR: hats, caps, beanies, fashion scarves, fashion belts, gloves, ties
+- Intimates: socks, underwear, bras, lingerie, pajamas, robes
+- Active/Swim: activewear, swimwear, athletic clothing, sportswear
 
 ❌ ABSOLUTELY EXCLUDE (NOT wearable clothing):
 - Home goods: bath caddies, towels, bedding, pillows, rugs, curtains, storage containers
@@ -152,23 +156,28 @@ Use null for missing fields.`;
       const allowedClothingTypes = [
         // Tops
         'shirt', 't-shirt', 'tshirt', 'tee', 'blouse', 'top', 'tank', 'tank top', 'crop top',
-        'sweater', 'hoodie', 'sweatshirt', 'cardigan', 'pullover', 'vest',
+        'sweater', 'hoodie', 'sweatshirt', 'cardigan', 'pullover', 'vest', 'tunic',
         // Bottoms
         'pants', 'jeans', 'trousers', 'shorts', 'skirt', 'leggings', 'joggers', 'chinos', 'slacks',
+        'overalls', 'coveralls', 'dungarees', 'romper', 'jumpsuit',
         // Outerwear
-        'jacket', 'coat', 'blazer', 'parka', 'windbreaker', 'bomber', 'raincoat',
+        'jacket', 'coat', 'blazer', 'parka', 'windbreaker', 'bomber', 'raincoat', 'peacoat',
+        'trench', 'anorak', 'fleece', 'poncho',
         // Dresses
-        'dress', 'gown', 'sundress', 'maxi', 'midi', 'mini',
+        'dress', 'gown', 'sundress', 'maxi', 'midi', 'mini', 'cocktail dress',
         // Footwear
         'shoes', 'sneakers', 'boots', 'sandals', 'heels', 'flats', 'loafers', 'slippers',
-        'athletic shoes', 'running shoes', 'tennis shoes',
+        'athletic shoes', 'running shoes', 'tennis shoes', 'cleats', 'mules', 'espadrilles',
+        'oxfords', 'brogues', 'ankle boots', 'knee boots', 'rain boots',
         // Intimates & Basics
-        'socks', 'underwear', 'bra', 'lingerie', 'boxers', 'briefs', 'panties',
+        'socks', 'underwear', 'bra', 'lingerie', 'boxers', 'briefs', 'panties', 'undershirt',
+        'camisole', 'slip', 'nightgown', 'pajamas', 'robe', 'bathrobe',
         // Accessories (wearable only)
-        'hat', 'cap', 'beanie', 'scarf', 'belt', 'gloves', 'mittens',
+        'hat', 'cap', 'beanie', 'scarf', 'belt', 'gloves', 'mittens', 'tie', 'bow tie',
+        'suspenders', 'headband', 'bandana',
         // Active/Swim
         'activewear', 'swimwear', 'swimsuit', 'bikini', 'trunks', 'athletic wear',
-        'yoga pants', 'sports bra', 'compression'
+        'yoga pants', 'sports bra', 'compression', 'tracksuit', 'sweatpants', 'gym shorts'
       ];
 
       const blockedKeywords = [
