@@ -302,7 +302,7 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
       throw new Error("ANTHROPIC_API_KEY not configured");
     }
 
-    console.log('Using Claude 3.5 Sonnet for receipt parsing (more accurate than Haiku)');
+    console.log('Using Claude Sonnet 4.5 (2025) for receipt parsing - highly accurate for complex extraction');
     console.log(`=== EMAIL BEING PARSED ===`);
     console.log(`Subject: ${emailSubject}`);
     console.log(`Body preview (first 500 chars): ${emailBody.substring(0, 500)}`);
@@ -318,7 +318,7 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
           "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
-          model: "claude-3-5-sonnet-20240620", // Using Sonnet - more accurate for complex extraction
+          model: "claude-sonnet-4-5-20250929", // Using Claude Sonnet 4.5 (2025) - more accurate for complex extraction
           max_tokens: 4096,
           temperature: 0, // Zero temp for maximum determinism
           system: "You are a strict data extraction tool. Extract ONLY what you see in the email provided. DO NOT reuse examples, templates, or data from previous emails. Each email is completely independent. If you cannot find specific items with names and prices in THIS email, return an empty items array.",
