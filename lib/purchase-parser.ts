@@ -47,12 +47,16 @@ Return a JSON object with this exact structure:
   "total": 149.99
 }
 
-Important:
-- Only extract CLOTHING items (ignore accessories, electronics, etc. unless they're fashion items)
-- If no clothing items found, return empty items array
-- Use null for missing fields
-- Extract as much detail as possible from item descriptions
-- Infer clothing type from item name if not explicit`;
+STRICT RULES - Only extract items that are WEARABLE CLOTHING:
+✅ INCLUDE: Shirts, pants, jeans, dresses, skirts, shorts, jackets, coats, sweaters, hoodies, t-shirts, blouses, suits, blazers, activewear, swimwear, shoes, boots, sneakers, sandals, socks, underwear, fashion scarves, fashion belts, hats, caps, beanies, gloves
+
+❌ EXCLUDE: Electronics, books, home goods, furniture, kitchen items, toys, beauty products, skincare, makeup, phone cases, chargers, cables, gift cards, groceries, food, beverages, non-fashion accessories (watches, tech accessories, etc.), bags/luggage (unless clearly a fashion handbag/purse), jewelry (unless specifically fashion jewelry)
+
+If this email contains ONLY non-clothing items, return an empty items array.
+If this email contains MIXED items (clothing + non-clothing), ONLY extract the clothing items.
+
+Extract as much detail as possible from item descriptions and infer clothing type from item name if not explicit.
+Use null for missing fields.`;
 
   try {
     // Use Claude API for receipt parsing (fast and accurate for structured data extraction)
