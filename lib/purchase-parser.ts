@@ -304,8 +304,12 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
 
     console.log('Using Claude Sonnet 4.5 (2025) for receipt parsing - highly accurate for complex extraction');
     console.log(`=== EMAIL BEING PARSED ===`);
+    console.log(`From: ${emailFrom || 'Unknown sender'}`);
     console.log(`Subject: ${emailSubject}`);
-    console.log(`Body preview (first 500 chars): ${emailBody.substring(0, 500)}`);
+    console.log(`Body length: ${emailBody.length} chars (sending first ${Math.min(8000, emailBody.length)} to AI)`);
+    console.log(`Body preview (first 800 chars):`);
+    console.log(emailBody.substring(0, 800));
+    console.log(`... (truncated) ...`);
     console.log(`========================`);
 
     const response = await fetch(
@@ -666,7 +670,46 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
       
       const validatedItems = filteredItems.filter(item => {
         if (!item.name) return false;
-        
+
+        // CRITICAL: Brand-Sender Mismatch Detection
+        // If email is from a specific brand, reject items from obviously different brands
+        // This prevents AI from extracting Nordstrom items from a Grace Eleyae email
+        if (emailFrom && item.brand) {
+          const emailDomainForBrandCheck = emailFrom.match(/@([^.]+)/)?.[1]?.toLowerCase();
+          const itemBrandLower = item.brand.toLowerCase().replace(/['\s]/g, ''); // "Lands' End" -> "landsend"
+          const storeLower = parsed.store?.toLowerCase().replace(/['\s]/g, '') || '';
+
+          // If email is from a specific clothing brand, items should match that brand or be from a marketplace
+          // Marketplaces (Amazon, Nordstrom, etc.) can have items from any brand
+          const marketplaces = ['amazon', 'nordstrom', 'macys', 'macy', 'target', 'walmart', 'asos', 'zappos', 'shopify'];
+          const isMarketplaceEmail = marketplaces.some(m => emailDomainForBrandCheck?.includes(m) || storeLower.includes(m));
+
+          // Check if email sender is a specific brand (not a marketplace)
+          if (emailDomainForBrandCheck && !isMarketplaceEmail) {
+            // Email sender brand should roughly match item brand OR store name
+            const senderBrandMatches = itemBrandLower.includes(emailDomainForBrandCheck) ||
+                                      emailDomainForBrandCheck.includes(itemBrandLower) ||
+                                      storeLower.includes(emailDomainForBrandCheck) ||
+                                      emailDomainForBrandCheck.includes(storeLower);
+
+            // Special case: "levi.com" should match "Levi's"
+            const normalizedDomain = emailDomainForBrandCheck.replace(/s$/, '');
+            const normalizedBrand = itemBrandLower.replace(/s$/, '');
+            const normalizedStore = storeLower.replace(/s$/, '');
+            const normalizedMatches = normalizedBrand.includes(normalizedDomain) ||
+                                     normalizedDomain.includes(normalizedBrand) ||
+                                     normalizedStore.includes(normalizedDomain) ||
+                                     normalizedDomain.includes(normalizedStore);
+
+            if (!senderBrandMatches && !normalizedMatches) {
+              console.log(`❌ REJECTED - Brand mismatch: Email from "${emailFrom}" but item brand is "${item.brand}"`);
+              console.log(`   This indicates AI cross-contamination (extracting items from wrong email)`);
+              console.log(`   Email domain: ${emailDomainForBrandCheck}, Item brand: ${itemBrandLower}, Store: ${storeLower}`);
+              return false;
+            }
+          }
+        }
+
         // Strip HTML tags and decode HTML entities for better text matching
         // This is critical because most order confirmation emails are HTML
         // Also extract text from alt attributes, data attributes, and other HTML attributes
@@ -985,7 +1028,17 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
       };
 
       if (result.items.length === 0) {
-        console.log('No clothing items found in email');
+        if (result.orderNumber || result.store) {
+          console.log('⚠️  WARNING: AI found order confirmation (order number or store) but NO ITEMS');
+          console.log('   This could mean:');
+          console.log('   1. Item details are beyond the 8,000 character limit');
+          console.log('   2. Email is a shipping/tracking notification (no itemized list)');
+          console.log('   3. Email says "click to view order" without showing items');
+          console.log('   4. HTML structure is too complex for AI to parse');
+          console.log(`   Order: ${result.orderNumber || 'N/A'}, Store: ${result.store || 'N/A'}`);
+        } else {
+          console.log('No clothing items found in email (not an order confirmation)');
+        }
       }
 
       return result;
