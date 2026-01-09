@@ -51,6 +51,11 @@ STEP 3: Extract ONLY if order details are present
 - DO NOT hallucinate or make up item names, prices, or details
 - DO NOT use placeholder values like "Item 1", "Example Product", or generic prices
 - If the email mentions items but doesn't list them (e.g., "your order contains 3 items"), return {"items": [], ...}
+- CRITICAL: Store name must be the CLOTHING RETAILER, not a restaurant, venue, or delivery location
+  * ❌ WRONG: "HiHo Cheeseburger - Mid-Wilshire" (this is a restaurant, not a clothing store)
+  * ❌ WRONG: "Starbucks", "AMC Theater", "Madison Square Garden" (these are not clothing stores)
+  * ✅ CORRECT: "Levi's", "Nike", "Nordstrom", "Amazon" (these are clothing retailers)
+  * If you see a restaurant or venue name in the email, IGNORE IT - it's not the store where clothing was purchased
 
 CRITICAL: Respond with ONLY a valid JSON object. Do not include any explanatory text, markdown formatting, or code blocks. Return ONLY the raw JSON.
 
@@ -90,6 +95,17 @@ Return a JSON object with this exact structure:
   "store": "actual store name or null",
   "total": 0.00
 }
+
+STORE NAME RULES:
+- Extract the RETAILER/BRAND STORE NAME where the clothing was purchased
+- Examples: "Levi's", "Nike", "Nordstrom", "Amazon", "Zara", "Target"
+- DO NOT extract restaurant names (even if mentioned in email) - restaurants don't sell clothing
+- DO NOT extract venue names (theaters, cafes, etc.) - these are not stores that sell clothing
+- DO NOT extract shipping addresses or delivery locations as store names
+- If email mentions a restaurant or venue name, IGNORE IT - it's not the store
+- Store name should be the COMPANY/BRAND that sold the clothing items
+- If you cannot find a clear retailer/store name, use null (do not guess)
+- Common clothing retailers: Levi's, Nike, Adidas, Gap, Old Navy, Nordstrom, Macy's, Target, Amazon, Zara, H&M, Uniqlo, ASOS, etc.
 
 ITEM NAME REQUIREMENTS:
 - Must be a SPECIFIC PRODUCT NAME, not just a brand
@@ -489,15 +505,90 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
         return true;
       };
 
+      // Validate store name - reject restaurant/food names, venue names, etc.
+      const isValidStoreName = (storeName: string | null | undefined, items: ParsedItem[]): boolean => {
+        if (!storeName || !storeName.trim()) {
+          return true; // null/undefined/empty is acceptable
+        }
+
+        const storeLower = storeName.toLowerCase().trim();
+
+        // BLOCKLIST: Reject restaurant/food-related store names
+        const restaurantKeywords = [
+          'cheeseburger', 'burger', 'restaurant', 'cafe', 'diner', 'bistro', 'pizza',
+          'sandwich', 'grill', 'steakhouse', 'sushi', 'chinese', 'mexican', 'italian',
+          'coffee', 'bar', 'pub', 'tavern', 'brewery', 'wings', 'chicken', 'food'
+        ];
+
+        if (restaurantKeywords.some(keyword => storeLower.includes(keyword))) {
+          console.log(`❌ Blocked invalid store name - contains restaurant/food keyword: "${storeName}"`);
+          return false;
+        }
+
+        // BLOCKLIST: Reject venue/entertainment names when items are clothing
+        const venueKeywords = [
+          'theater', 'theatre', 'cinema', 'movie', 'club', 'venue', 'arena',
+          'stadium', 'convention', 'conference', 'event'
+        ];
+
+        if (venueKeywords.some(keyword => storeLower.includes(keyword))) {
+          console.log(`❌ Blocked invalid store name - contains venue/entertainment keyword: "${storeName}"`);
+          return false;
+        }
+
+        // CROSS-VALIDATION: If items have a brand, store should match known retailers
+        const itemsWithBrands = items.filter(item => item.brand);
+        if (itemsWithBrands.length > 0) {
+          const brands = itemsWithBrands.map(item => item.brand!.toLowerCase());
+          
+          // Known clothing retailers (common stores that sell clothing)
+          const knownRetailers = [
+            'levi', "levi's", 'nike', 'adidas', 'gap', 'old navy', 'banana republic',
+            'nordstrom', 'macy', "macy's", 'target', 'walmart', 'amazon',
+            'zara', 'h&m', 'hm', 'uniqlo', 'j.crew', 'jcrew', 'madewell',
+            'asos', 'boohoo', 'shein', 'fashion nova', 'forever 21', 'hollister',
+            'abercrombie', 'american eagle', 'urban outfitters', 'anthropologie',
+            'revolve', 'shopbop', 'farfetch', 'ssense', 'net-a-porter'
+          ];
+
+          // Check if store name contains a brand name (e.g., "Levi's Store" or "Nike.com")
+          const storeMatchesBrand = brands.some(brand => 
+            storeLower.includes(brand) || brand.includes(storeLower)
+          );
+
+          // Check if store name contains a known retailer
+          const storeIsKnownRetailer = knownRetailers.some(retailer => 
+            storeLower.includes(retailer) || retailer.includes(storeLower)
+          );
+
+          // If we have a brand but store doesn't match brand or known retailer, log a warning
+          // But don't reject - sometimes items come from third-party sellers or department stores
+          if (!storeMatchesBrand && !storeIsKnownRetailer && storeLower.length > 15) {
+            console.log(`⚠️  Warning - store name "${storeName}" doesn't match brand(s) [${brands.join(', ')}] or known retailers`);
+          }
+        }
+
+        return true;
+      };
+
+      const filteredItems = parsed.items?.filter(item =>
+        item.name &&
+        item.name.length > 0 &&
+        isClothingItem(item)
+      ) || [];
+
+      // Validate store name against filtered items
+      let validatedStore = parsed.store;
+      if (!isValidStoreName(validatedStore, filteredItems)) {
+        console.log(`⚠️  Rejecting invalid store name: "${validatedStore}" - setting to undefined`);
+        validatedStore = undefined;
+      }
+
       const result = {
-        items: parsed.items?.filter(item =>
-          item.name &&
-          item.name.length > 0 &&
-          isClothingItem(item)
-        ) || [],
+        items: filteredItems,
         orderNumber: parsed.orderNumber || undefined,
         purchaseDate: parsed.purchaseDate || undefined,
-        store: parsed.store || undefined,
+        store: validatedStore || undefined,
         total: parsed.total || undefined,
       };
 
