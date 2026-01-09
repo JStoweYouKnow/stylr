@@ -163,21 +163,42 @@ export async function searchPurchaseEmails(userId: string, daysBack: number = 30
   searchDate.setDate(searchDate.getDate() - daysBack);
   const afterDate = Math.floor(searchDate.getTime() / 1000);
 
-  // Common Gmail labels for shopping/orders
-  const shoppingLabels = [
-    "Shopping",
-    "Orders", 
-    "Order Confirmations",
-    "Receipts",
-    "Purchases",
-    "Amazon",
-    "E-commerce",
-  ];
+  // First, get all user labels to find shopping-related labels (including user-created variations)
+  // This allows us to find labels even if they don't match our predefined list exactly
+  let shoppingLabelNames: string[] = [];
+  try {
+    const labelsResponse = await gmail.users.labels.list({ userId: "me" });
+    const allLabels = labelsResponse.data.labels || [];
+    
+    // Find labels that match shopping-related keywords (case-insensitive)
+    const shoppingKeywords = ["shopping", "order", "receipt", "purchase", "amazon", "e-commerce", "ecommerce"];
+    shoppingLabelNames = allLabels
+      .filter((label: any) => {
+        if (!label.name) return false;
+        const labelNameLower = label.name.toLowerCase();
+        return shoppingKeywords.some(keyword => labelNameLower.includes(keyword.toLowerCase()));
+      })
+      .map((label: any) => label.name);
+    
+    console.log(`Found ${shoppingLabelNames.length} shopping-related labels in user's account: ${shoppingLabelNames.join(", ")}`);
+    
+    // Add common predefined labels if they're not already found
+    const commonLabels = ["Shopping", "Orders", "Order Confirmations", "Receipts", "Purchases", "Amazon", "E-commerce"];
+    commonLabels.forEach(label => {
+      if (!shoppingLabelNames.includes(label)) {
+        shoppingLabelNames.push(label);
+      }
+    });
+  } catch (err) {
+    console.error("Error fetching user labels:", err);
+    // Fallback to common labels if we can't fetch user labels
+    shoppingLabelNames = ["Shopping", "Orders", "Receipts", "Purchases"];
+  }
 
   // Build query prioritizing labeled emails first
   // Priority 1: Emails with shopping labels (no subject restriction - trust the label)
   // Gmail label search: Use format label:LabelName for single word, label:"Label Name" for multi-word
-  const labelQueryParts = shoppingLabels.map(label => {
+  const labelQueryParts = shoppingLabelNames.map(label => {
     // If label has spaces, wrap in quotes; otherwise use as-is
     if (label.includes(" ")) {
       return `label:"${label}"`;
@@ -187,6 +208,9 @@ export async function searchPurchaseEmails(userId: string, daysBack: number = 30
   });
   
   const labeledQuery = `(${labelQueryParts.join(" OR ")}) after:${afterDate}`.trim().replace(/\s+/g, " ");
+  
+  console.log('Gmail search query (labeled):', labeledQuery);
+  console.log('Searching for these label names:', shoppingLabelNames.join(", "));
 
   // Priority 2: Emails with order confirmation subjects (even without labels)
   const subjectQuery = `
@@ -198,15 +222,11 @@ export async function searchPurchaseEmails(userId: string, daysBack: number = 30
     )
     after:${afterDate}
   `.trim().replace(/\s+/g, " ");
-
-  // Search for labeled emails first (higher priority)
-  console.log('Gmail search query (labeled):', labeledQuery);
-  console.log('Searching for labels:', shoppingLabels.join(", "));
   
   const labeledResponse = await gmail.users.messages.list({
     userId: "me",
     q: labeledQuery,
-    maxResults: 50,
+    maxResults: 100, // Increased to find more emails
   });
 
   const labeledMessages = labeledResponse.data.messages || [];
@@ -231,8 +251,8 @@ export async function searchPurchaseEmails(userId: string, daysBack: number = 30
 
   // Log label details for first few labeled emails (for debugging)
   if (labeledMessages.length > 0) {
-    console.log(`Fetching label details for ${Math.min(3, labeledMessages.length)} labeled emails...`);
-    for (let i = 0; i < Math.min(3, labeledMessages.length); i++) {
+    console.log(`Fetching label details for ${Math.min(5, labeledMessages.length)} labeled emails...`);
+    for (let i = 0; i < Math.min(5, labeledMessages.length); i++) {
       try {
         const msg = await gmail.users.messages.get({
           userId: "me",
@@ -240,13 +260,21 @@ export async function searchPurchaseEmails(userId: string, daysBack: number = 30
           format: "metadata",
           metadataHeaders: ["Subject"],
         });
-        const labels = msg.data.labelIds || [];
+        const labelIds = msg.data.labelIds || [];
+        // Get actual label names
+        const labelNames = await getLabelNames(gmail, labelIds);
         const subject = msg.data.payload?.headers?.find(h => h.name?.toLowerCase() === "subject")?.value || "";
-        console.log(`  Email ${i + 1}: "${subject.substring(0, 50)}..." - Labels: [${labels.join(", ")}]`);
+        console.log(`  Email ${i + 1}: "${subject.substring(0, 50)}..." - Label IDs: [${labelIds.join(", ")}] - Label Names: [${labelNames.join(", ")}]`);
       } catch (err) {
         console.error(`  Error fetching email ${i + 1}:`, err);
       }
     }
+  } else {
+    console.log('⚠️  WARNING: No emails found with shopping labels. This might mean:');
+    console.log('  1. The label name doesn\'t match exactly (check case sensitivity)');
+    console.log('  2. Emails are outside the date range');
+    console.log('  3. The label hasn\'t been applied yet');
+    console.log('  4. Label search syntax might need adjustment');
   }
 
   return allMessages;
