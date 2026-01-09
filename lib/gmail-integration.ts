@@ -182,6 +182,10 @@ export async function searchPurchaseEmails(userId: string, daysBack: number = 30
     
     console.log(`Found ${shoppingLabelNames.length} shopping-related labels in user's account: ${shoppingLabelNames.join(", ")}`);
     
+    // Log ALL user labels for debugging (to help identify exact label names)
+    const allLabelNames = allLabels.map((l: any) => l.name).filter(Boolean).sort();
+    console.log(`All user labels in account (${allLabelNames.length} total): ${allLabelNames.join(", ")}`);
+    
     // Add common predefined labels if they're not already found
     const commonLabels = ["Shopping", "Orders", "Order Confirmations", "Receipts", "Purchases", "Amazon", "E-commerce"];
     commonLabels.forEach(label => {
@@ -189,28 +193,59 @@ export async function searchPurchaseEmails(userId: string, daysBack: number = 30
         shoppingLabelNames.push(label);
       }
     });
+    
+    console.log(`Will search for these labels: ${shoppingLabelNames.join(", ")}`);
   } catch (err) {
     console.error("Error fetching user labels:", err);
     // Fallback to common labels if we can't fetch user labels
     shoppingLabelNames = ["Shopping", "Orders", "Receipts", "Purchases"];
   }
 
-  // Build query prioritizing labeled emails first
-  // Priority 1: Emails with shopping labels (no subject restriction - trust the label)
-  // Gmail label search: Use format label:LabelName for single word, label:"Label Name" for multi-word
-  const labelQueryParts = shoppingLabelNames.map(label => {
-    // If label has spaces, wrap in quotes; otherwise use as-is
-    if (label.includes(" ")) {
-      return `label:"${label}"`;
-    } else {
-      return `label:${label}`;
+  // Strategy: Search for each shopping label individually, then combine results
+  // This is more reliable than complex OR queries in Gmail API
+  let allLabeledMessages: any[] = [];
+  const labeledIds = new Set<string>();
+  
+  console.log(`Searching for emails with ${shoppingLabelNames.length} shopping labels...`);
+  
+  // Search each label individually to avoid Gmail API quirks with OR queries
+  for (const labelName of shoppingLabelNames) {
+    try {
+      // Build query for this specific label
+      let labelQuery: string;
+      if (labelName.includes(" ")) {
+        labelQuery = `label:"${labelName}" after:${afterDate}`;
+      } else {
+        labelQuery = `label:${labelName} after:${afterDate}`;
+      }
+      
+      console.log(`  Searching for label "${labelName}": ${labelQuery}`);
+      
+      const response = await gmail.users.messages.list({
+        userId: "me",
+        q: labelQuery,
+        maxResults: 100,
+      });
+      
+      const messages = response.data.messages || [];
+      console.log(`    Found ${messages.length} emails with label "${labelName}"`);
+      
+      // Add unique messages
+      messages.forEach((msg: any) => {
+        if (msg.id && !labeledIds.has(msg.id)) {
+          allLabeledMessages.push(msg);
+          labeledIds.add(msg.id);
+        }
+      });
+    } catch (err) {
+      console.error(`  Error searching for label "${labelName}":`, err);
+      // Continue with other labels
     }
-  });
+  }
+
+  console.log(`Total found: ${allLabeledMessages.length} unique emails with shopping labels`);
   
-  const labeledQuery = `(${labelQueryParts.join(" OR ")}) after:${afterDate}`.trim().replace(/\s+/g, " ");
-  
-  console.log('Gmail search query (labeled):', labeledQuery);
-  console.log('Searching for these label names:', shoppingLabelNames.join(", "));
+  const labeledMessages = allLabeledMessages;
 
   // Priority 2: Emails with order confirmation subjects (even without labels)
   const subjectQuery = `
@@ -222,16 +257,6 @@ export async function searchPurchaseEmails(userId: string, daysBack: number = 30
     )
     after:${afterDate}
   `.trim().replace(/\s+/g, " ");
-  
-  const labeledResponse = await gmail.users.messages.list({
-    userId: "me",
-    q: labeledQuery,
-    maxResults: 100, // Increased to find more emails
-  });
-
-  const labeledMessages = labeledResponse.data.messages || [];
-  const labeledIds = new Set(labeledMessages.map((m) => m.id));
-  console.log(`Found ${labeledMessages.length} emails with shopping labels`);
 
   // Search for subject-based emails (lower priority, exclude already found)
   console.log('Gmail search query (subject):', subjectQuery);
@@ -270,11 +295,104 @@ export async function searchPurchaseEmails(userId: string, daysBack: number = 30
       }
     }
   } else {
-    console.log('⚠️  WARNING: No emails found with shopping labels. This might mean:');
-    console.log('  1. The label name doesn\'t match exactly (check case sensitivity)');
-    console.log('  2. Emails are outside the date range');
-    console.log('  3. The label hasn\'t been applied yet');
-    console.log('  4. Label search syntax might need adjustment');
+    console.log('⚠️  WARNING: No emails found with direct label search. Trying fallback approach...');
+    
+    // FALLBACK: Search more broadly, then check labels after fetching
+    // This helps catch cases where Gmail's label search might miss emails
+    const fallbackQuery = `(
+      subject:("order" OR "receipt" OR "purchase" OR "confirmation" OR "thank you for your order" OR "order #" OR "order placed")
+      -subject:("shipping" OR "shipped" OR "tracking" OR "delivery" OR "out for delivery")
+    ) after:${afterDate}`;
+    
+    console.log('  Fallback query:', fallbackQuery);
+    
+    try {
+      const fallbackResponse = await gmail.users.messages.list({
+        userId: "me",
+        q: fallbackQuery,
+        maxResults: 100,
+      });
+      
+      const fallbackMessages = fallbackResponse.data.messages || [];
+      console.log(`  Found ${fallbackMessages.length} emails in fallback search. Checking labels...`);
+      
+      // Build label ID set for quick lookup
+      const shoppingLabelIds = new Set<string>();
+      try {
+        const allLabelsResponse = await gmail.users.labels.list({ userId: "me" });
+        const allLabels = allLabelsResponse.data.labels || [];
+        shoppingLabelNames.forEach(labelName => {
+          const label = allLabels.find((l: any) => 
+            l.name && l.name.toLowerCase() === labelName.toLowerCase()
+          );
+          if (label?.id) {
+            shoppingLabelIds.add(label.id);
+          }
+        });
+        console.log(`  Shopping label IDs to match: [${Array.from(shoppingLabelIds).join(", ")}]`);
+      } catch (err) {
+        console.error("  Error building label ID set:", err);
+      }
+      
+      // Check each email's labels
+      let labeledFromFallback = 0;
+      for (const msg of fallbackMessages) {
+        if (!msg.id || labeledIds.has(msg.id)) continue; // Skip if already found
+        
+        try {
+          const msgDetail = await gmail.users.messages.get({
+            userId: "me",
+            id: msg.id,
+            format: "metadata",
+            metadataHeaders: ["Subject"],
+          });
+          
+          const msgLabelIds = msgDetail.data.labelIds || [];
+          
+          // Check if this email has any shopping labels
+          const hasShoppingLabel = Array.from(shoppingLabelIds).some(id => 
+            msgLabelIds.includes(id)
+          );
+          
+          if (hasShoppingLabel) {
+            if (!labeledIds.has(msg.id)) {
+              labeledMessages.push(msg);
+              labeledIds.add(msg.id);
+              labeledFromFallback++;
+              
+              // Log first few for debugging
+              if (labeledFromFallback <= 3) {
+                const labelNames = await getLabelNames(gmail, msgLabelIds);
+                const subject = msgDetail.data.payload?.headers?.find(h => h.name?.toLowerCase() === "subject")?.value || "";
+                console.log(`    ✓ Found labeled email: "${subject.substring(0, 50)}..." - Labels: [${labelNames.join(", ")}]`);
+              }
+            }
+          }
+        } catch (err) {
+          console.error(`  Error checking labels for email ${msg.id}:`, err);
+          // Continue with other emails
+        }
+      }
+      
+      if (labeledFromFallback > 0) {
+        console.log(`  ✅ Found ${labeledFromFallback} additional labeled emails via fallback approach`);
+        // Rebuild allMessages with updated labeledMessages
+        const updatedLabeledIds = new Set(labeledMessages.map((m) => m.id));
+        const subjectMessages = (subjectResponse.data.messages || []).filter(
+          (m) => !updatedLabeledIds.has(m.id)
+        );
+        return [...labeledMessages, ...subjectMessages];
+      } else {
+        console.log('  ⚠️  Fallback approach also found no labeled emails.');
+        console.log('  Possible reasons:');
+        console.log('    1. The label name doesn\'t match exactly (check case sensitivity)');
+        console.log('    2. Emails are outside the date range');
+        console.log('    3. The label hasn\'t been applied yet');
+        console.log('    4. Label search syntax might need adjustment');
+      }
+    } catch (err) {
+      console.error('  Error in fallback search:', err);
+    }
   }
 
   return allMessages;
