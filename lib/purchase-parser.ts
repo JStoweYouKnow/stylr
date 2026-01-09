@@ -33,6 +33,8 @@ FIRST: Verify this is a CONFIRMED ORDER email (order confirmation, receipt, or o
 - If this is NOT a confirmed order (e.g., abandoned cart, wishlist, marketing email), return {"items": [], ...other fields...}
 - Only extract from CONFIRMED purchases that have already been placed/ordered
 
+CRITICAL: Respond with ONLY a valid JSON object. Do not include any explanatory text, markdown formatting, or code blocks. Return ONLY the raw JSON.
+
 Return a JSON object with this exact structure:
 {
   "items": [
@@ -245,7 +247,7 @@ Use null for missing fields.`;
 
       return result;
     } catch (parseError) {
-      console.error("Failed to parse Gemini response:", jsonText);
+      console.error("Failed to parse Claude response:", jsonText);
       throw new Error(`Failed to parse AI response: ${parseError instanceof Error ? parseError.message : 'Invalid JSON'}`);
     }
   } catch (error) {
