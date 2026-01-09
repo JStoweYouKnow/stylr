@@ -66,8 +66,8 @@ export async function POST(request: NextRequest) {
 
         console.log(`  ✅ Processing: ${filterResult.reason || "Matches criteria"}`);
 
-        // Parse receipt with AI
-        const parsed = await parseReceiptWithAI(email.subject, email.body);
+        // Parse receipt with AI (pass email.from to help differentiate emails)
+        const parsed = await parseReceiptWithAI(email.subject, email.body, email.from);
 
         console.log('AI parse result:', {
           itemsCount: parsed.items?.length || 0,

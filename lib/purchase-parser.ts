@@ -16,20 +16,35 @@ export interface ParsedItem {
 }
 
 /**
- * Parse purchase receipt from email content using Gemini AI
+ * Parse purchase receipt from email content using Claude AI
  */
 export async function parseReceiptWithAI(
   emailSubject: string,
-  emailBody: string
+  emailBody: string,
+  emailFrom?: string
 ): Promise<ParsedPurchase> {
-  const prompt = `You are a STRICT data extraction tool. Your job is to extract ONLY what is explicitly visible in the email text below. You NEVER guess, infer, or make up information. When information is missing, you return null or empty arrays. You prioritize ACCURACY over completeness.
+  const prompt = `You are a STRICT data extraction tool. Your job is to extract ONLY what is explicitly visible in THIS SPECIFIC EMAIL below. You NEVER guess, infer, or make up information. When information is missing, you return null or empty arrays. You prioritize ACCURACY over completeness.
+
+CRITICAL: EACH EMAIL IS DIFFERENT - EXTRACT ONLY FROM THIS EMAIL
+- DO NOT reuse data from examples, previous emails, or templates
+- DO NOT default to specific product names (like "Red Tab Men's Overalls") unless you see them in THIS email
+- Each email contains DIFFERENT items - look carefully at what is ACTUALLY in THIS email
+- If this email has a t-shirt, extract the t-shirt. If it has jeans, extract the jeans. Do not extract items that are not in THIS email.
 
 You are extracting clothing purchases from ORDER CONFIRMATION emails ONLY.
 
-Subject: ${emailSubject}
+EMAIL METADATA:
+- From: ${emailFrom || 'Unknown sender'}
+- Subject: ${emailSubject}
 
-Body:
+EMAIL BODY:
 ${emailBody.substring(0, 4000)} // Limit body length
+
+REMEMBER: 
+- This is a UNIQUE email from "${emailFrom || 'unknown sender'}" about "${emailSubject}"
+- Extract items ONLY from THIS SPECIFIC email text above
+- Do NOT copy from examples, templates, or previous responses
+- Each email is different - look carefully at what is ACTUALLY in THIS email
 
 CRITICAL VERIFICATION STEPS (MUST CHECK IN ORDER):
 
@@ -171,30 +186,35 @@ CRITICAL EXTRACTION RULES:
    - HTML tables with product rows
    - Line items in order summaries
 
-3. Extract the EXACT product names as written in the email
-4. Extract the EXACT prices shown in the email (not examples, not placeholders)
+3. Extract the EXACT product names as written in THIS SPECIFIC EMAIL (not from examples, not from memory)
+4. Extract the EXACT prices shown in THIS SPECIFIC EMAIL (not examples, not placeholders)
 5. If a price is shown as $59.99, use 59.99 (not 49.99 or any other number)
-6. If an item name is "Red Tab™ Men's Overalls", use that EXACT name (not "Levi's" or generic name)
-7. Look for order details, line items, product descriptions in structured blocks
-8. Use null for fields you cannot find - DO NOT make up data or use placeholder values
+6. Look for order details, line items, product descriptions in structured blocks IN THIS EMAIL
+7. Use null for fields you cannot find - DO NOT make up data or use placeholder values
 
-EXAMPLE OF WHAT TO LOOK FOR:
-If you see a structured product block like:
-  Product Name: Red Tab™ Men's Overalls
-  Color: Crackin Bracken
-  Size: M
-  Style: 7910700320M
-  Qty: 1
-  Price: $49.75
+CRITICAL: DO NOT REUSE EXAMPLES OR TEMPLATES
+- DO NOT copy item names from examples or previous emails
+- DO NOT default to "Red Tab Men's Overalls" or any other specific product unless you see it IN THIS EMAIL
+- Each email contains DIFFERENT items - extract ONLY what you see in THIS email
+- If this email is about a t-shirt, extract the t-shirt. If it's about jeans, extract the jeans.
+- If this email is about shoes, extract the shoes. DO NOT extract overalls unless you see overalls in THIS email.
 
-Extract it as:
+EXAMPLE PATTERN (NOT TO BE COPIED - USE AS TEMPLATE STRUCTURE ONLY):
+If you see a structured product block in THIS EMAIL like:
+  Product Name: [WHATEVER IS ACTUALLY IN THIS EMAIL]
+  Color: [WHATEVER IS ACTUALLY IN THIS EMAIL]
+  Size: [WHATEVER IS ACTUALLY IN THIS EMAIL]
+  Qty: [WHATEVER IS ACTUALLY IN THIS EMAIL]
+  Price: [WHATEVER IS ACTUALLY IN THIS EMAIL]
+
+Extract the ACTUAL values from THIS EMAIL:
   {
-    "name": "Red Tab™ Men's Overalls",
-    "quantity": 1,
-    "price": 49.75,
-    "type": "overalls",
-    "color": "Crackin Bracken",
-    "brand": "Levi's"
+    "name": "[ACTUAL PRODUCT NAME FROM THIS EMAIL]",
+    "quantity": [ACTUAL QTY FROM THIS EMAIL],
+    "price": [ACTUAL PRICE FROM THIS EMAIL],
+    "type": "[ACTUAL TYPE FROM THIS EMAIL]",
+    "color": "[ACTUAL COLOR FROM THIS EMAIL or null]",
+    "brand": "[ACTUAL BRAND FROM THIS EMAIL or null]"
   }
 
 Look for these structured patterns in the email:
@@ -214,9 +234,11 @@ MANDATORY: Each item MUST have a specific product name, not just a brand.
 - ❌ WRONG: {"name": "Nike", "brand": "Nike"} - This is just a brand, not an item
 - ❌ WRONG: {"name": "Levi's Item", "brand": "Levi's"} - Too generic, no product detail
 - ❌ WRONG: {"name": "Product from Levi's", "brand": "Levi's"} - Generic placeholder name
-- ✅ CORRECT: {"name": "Men's 501 Original Fit Jeans", "brand": "Levi's"} - Specific product
-- ✅ CORRECT: {"name": "Air Max 90 Sneakers", "brand": "Nike"} - Specific product
-- ✅ CORRECT: {"name": "Red Tab™ Men's Overalls", "brand": "Levi's"} - Specific product with details
+- ✅ CORRECT: {"name": "Men's 501 Original Fit Jeans", "brand": "Levi's"} - Specific product (ONLY if you see this in the email)
+- ✅ CORRECT: {"name": "Air Max 90 Sneakers", "brand": "Nike"} - Specific product (ONLY if you see this in the email)
+- ✅ CORRECT: {"name": "Classic Crew T-Shirt", "brand": "Gap"} - Specific product (ONLY if you see this in the email)
+
+REMEMBER: Extract ONLY items you actually see in THIS EMAIL. Do not copy names from examples.
 
 CRITICAL: If you cannot see BOTH a specific product name AND a specific price for the same item in the email, DO NOT create that item.
 - If product name is missing → DO NOT create item
@@ -226,8 +248,10 @@ CRITICAL: If you cannot see BOTH a specific product name AND a specific price fo
 
 If the email only mentions a brand name without specific product names, DO NOT create items.
 Only extract items where you can find BOTH:
-- A specific product name with product details (e.g., "501 Jeans", "Air Max 90", "Classic T-Shirt", "Red Tab Overalls")
+- A specific product name with product details (e.g., "501 Jeans", "Air Max 90", "Classic T-Shirt", "Denim Jacket", "Wool Sweater", etc. - whatever is ACTUALLY in this email)
 - AND a price for that specific item in the same product block
+
+DO NOT default to specific product names like "Red Tab Overalls" - extract only what you actually see in THIS email.
 
 If you see "Levi's - $59.99" but no product name, DO NOT extract it as an item.
 If you see "Order from Levi's" but no line items, DO NOT extract items.
@@ -257,12 +281,20 @@ Use null for missing fields.
 
 FINAL CHECK BEFORE RETURNING:
 1. Review each item in the items array
-2. For each item, verify you saw BOTH the name and price in the email
-3. If you cannot verify both were present in the email, REMOVE that item
-4. If the items array would be empty after removing unverifiable items, return {"items": [], ...}
-5. It is ALWAYS better to return NO items than to return GUESSED or MADE-UP items
+2. For each item, verify you saw BOTH the name and price in THIS SPECIFIC EMAIL above
+3. Verify the item name matches what you see in THIS EMAIL (not from examples or memory)
+4. If you cannot verify both were present in THIS EMAIL, REMOVE that item
+5. If the items array would be empty after removing unverifiable items, return {"items": [], ...}
+6. It is ALWAYS better to return NO items than to return GUESSED, MADE-UP, or COPIED items
 
-Remember: When in doubt, return empty items array. Only extract what you can clearly see.`;
+CRITICAL FINAL STEP: Before returning, ask yourself:
+- "Did I see this exact item name in the email text above?"
+- "Did I see this exact price in the email text above?"
+- "Am I copying this from an example or template, or is it actually in THIS email?"
+
+If you answer "no" to any of these questions, REMOVE that item from the response.
+
+Remember: When in doubt, return empty items array. Only extract what you can clearly see IN THIS SPECIFIC EMAIL.`;
 
   try {
     // Use Claude API for receipt parsing (fast and accurate for structured data extraction)
@@ -271,6 +303,10 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
     }
 
     console.log('Using Claude Haiku for receipt parsing');
+    console.log(`=== EMAIL BEING PARSED ===`);
+    console.log(`Subject: ${emailSubject}`);
+    console.log(`Body preview (first 500 chars): ${emailBody.substring(0, 500)}`);
+    console.log(`========================`);
 
     const response = await fetch(
       'https://api.anthropic.com/v1/messages',
@@ -331,11 +367,35 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
     try {
       const parsed = JSON.parse(jsonText) as ParsedPurchase;
 
-      console.log('AI parsed result:', {
+      console.log('=== AI PARSED RESULT ===');
+      console.log({
         store: parsed.store,
         itemCount: parsed.items?.length || 0,
-        items: parsed.items?.map(i => ({ name: i.name, type: i.type })),
-        orderNumber: parsed.orderNumber
+        items: parsed.items?.map(i => ({ 
+          name: i.name, 
+          type: i.type, 
+          brand: i.brand,
+          price: i.price 
+        })),
+        orderNumber: parsed.orderNumber,
+        purchaseDate: parsed.purchaseDate,
+        total: parsed.total
+      });
+      console.log('========================');
+      
+      // DETECTION: Check if items look like template responses (suspiciously generic or repeated)
+      const suspiciousPatterns = [
+        /red tab.*men.*overall/i,
+        /crackin.*bracken/i,
+        /7910700320/i
+      ];
+      
+      parsed.items?.forEach((item, index) => {
+        const itemText = `${item.name} ${item.color || ''} ${item.brand || ''}`.toLowerCase();
+        if (suspiciousPatterns.some(pattern => pattern.test(itemText))) {
+          console.log(`⚠️  WARNING: Item ${index + 1} matches suspicious template pattern: "${item.name}"`);
+          console.log(`   This might be a template response. Verify this item is actually in the email above.`);
+        }
       });
 
       // Validate and clean up the parsed data
