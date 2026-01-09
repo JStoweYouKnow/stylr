@@ -35,22 +35,24 @@ FIRST: Verify this is a CONFIRMED ORDER email (order confirmation, receipt, or o
 
 CRITICAL: Respond with ONLY a valid JSON object. Do not include any explanatory text, markdown formatting, or code blocks. Return ONLY the raw JSON.
 
+IMPORTANT: Extract the ACTUAL item names, prices, and details from THIS SPECIFIC EMAIL. Do NOT use placeholder or example data.
+
 Return a JSON object with this exact structure:
 {
   "items": [
     {
-      "name": "Item name (e.g., 'Navy Blazer', 'Men's Red Tab Overalls')",
+      "name": "ACTUAL item name from the email",
       "quantity": 1,
-      "price": 49.99,
-      "type": "clothing type (shirt/pants/overalls/dress/shoes/jacket/sweater/etc)",
-      "color": "primary color if mentioned",
-      "brand": "brand name if mentioned"
+      "price": 0.00,
+      "type": "shirt/pants/overalls/dress/shoes/jacket/sweater/etc",
+      "color": "color from email or null",
+      "brand": "brand from email or null"
     }
   ],
-  "orderNumber": "order number if found",
-  "purchaseDate": "YYYY-MM-DD format",
-  "store": "store/retailer name",
-  "total": 149.99
+  "orderNumber": "actual order number or null",
+  "purchaseDate": "YYYY-MM-DD or null",
+  "store": "actual store name or null",
+  "total": 0.00
 }
 
 CRITICAL: THIS IS A CLOTHING WARDROBE APP. ONLY EXTRACT WEARABLE CLOTHING FROM CONFIRMED ORDERS.
@@ -83,6 +85,14 @@ If the answer is NO, DO NOT include it in the items array.
 
 If this email contains ONLY non-clothing items, return {"items": [], ...other fields...}
 If mixed items, extract ONLY the wearable clothing items.
+
+CRITICAL EXTRACTION RULES:
+1. Read the email body carefully and extract the EXACT product names as written in the email
+2. Extract the EXACT prices shown in the email (not examples, not placeholders)
+3. If a price is shown as $59.99, use 59.99 (not 49.99 or any other number)
+4. If an item name is "Men's Red Tab 501 Original Fit Jeans", use that EXACT name (not "Navy Blazer")
+5. Look for order details, line items, product descriptions in the email body
+6. Use null for fields you cannot find - DO NOT make up data or use placeholder values
 
 Extract as much detail as possible from clothing item descriptions.
 Use null for missing fields.`;
