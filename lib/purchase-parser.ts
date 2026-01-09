@@ -1,3 +1,5 @@
+import * as cheerio from 'cheerio';
+
 export interface ParsedPurchase {
   items: ParsedItem[];
   orderNumber?: string;
@@ -16,6 +18,214 @@ export interface ParsedItem {
 }
 
 /**
+ * Extract order details sections from HTML email using Cheerio
+ * This reduces token usage by focusing on relevant sections
+ */
+function extractOrderDetailsFromHTML(html: string, maxLength: number = 30000): string {
+  try {
+    const $ = cheerio.load(html);
+    let extractedText = '';
+
+    // 1. Extract JSON-LD structured data (most reliable)
+    $('script[type="application/ld+json"]').each((_, el) => {
+      try {
+        const jsonData = JSON.parse($(el).html() || '{}');
+        if (jsonData['@type'] === 'Order' || jsonData['@type'] === 'Product' || jsonData.orderedItem) {
+          extractedText += JSON.stringify(jsonData, null, 2) + '\n\n';
+        }
+      } catch {
+        // Ignore invalid JSON
+      }
+    });
+
+    // 2. Find order details sections by class/id patterns
+    const orderSelectors = [
+      '[class*="order"]',
+      '[class*="item"]',
+      '[class*="product"]',
+      '[class*="receipt"]',
+      '[id*="order"]',
+      '[id*="item"]',
+      '[id*="product"]',
+      '[id*="receipt"]',
+      'table[class*="order"]',
+      'table[class*="item"]',
+      'table[class*="product"]',
+    ];
+
+    const foundSections = new Set<any>();
+
+    orderSelectors.forEach(selector => {
+      $(selector).each((_, el) => {
+        const $el = $(el);
+        // Check if this element contains product/order related text
+        const text = $el.text().toLowerCase();
+        if (text.includes('product') || text.includes('item') || text.includes('price') || 
+            text.includes('quantity') || text.includes('qty') || text.includes('total') ||
+            text.includes('order') || text.includes('purchase')) {
+          foundSections.add($el);
+        }
+      });
+    });
+
+    // 3. Extract text from found sections
+    foundSections.forEach($section => {
+      // Get text content, preserving some structure
+      const sectionText = $section.text().trim();
+      if (sectionText.length > 50) { // Only include substantial sections
+        extractedText += sectionText + '\n\n';
+      }
+    });
+
+    // 4. Extract from table rows that look like product rows
+    $('table tr').each((_, row) => {
+      const $row = $(row);
+      const rowText = $row.text().toLowerCase();
+      // Check if row contains product-like data (has price, quantity, or product name)
+      if ((rowText.includes('$') || rowText.match(/\d+\.\d{2}/)) && 
+          (rowText.includes('qty') || rowText.includes('quantity') || rowText.length > 20)) {
+        extractedText += $row.text().trim() + '\n';
+      }
+    });
+
+    // 5. Extract from common HTML attributes (alt, title, data-*)
+    $('[alt], [title], [data-product-name], [data-item-name], [data-name]').each((_, el) => {
+      const $el = $(el);
+      const alt = $el.attr('alt') || '';
+      const title = $el.attr('title') || '';
+      const dataName = $el.attr('data-product-name') || $el.attr('data-item-name') || $el.attr('data-name') || '';
+      if (alt || title || dataName) {
+        extractedText += [alt, title, dataName].filter(Boolean).join(' ') + '\n';
+      }
+    });
+
+    // If we found substantial extracted content, use it
+    if (extractedText.trim().length > 500) {
+      // Clean up the extracted text
+      extractedText = extractedText
+        .replace(/\s+/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+      
+      // Truncate if needed, but try to keep complete sentences
+      if (extractedText.length > maxLength) {
+        const truncated = extractedText.substring(0, maxLength);
+        const lastSentence = truncated.lastIndexOf('.');
+        if (lastSentence > maxLength * 0.8) {
+          return truncated.substring(0, lastSentence + 1);
+        }
+        return truncated;
+      }
+      return extractedText;
+    }
+
+    // Fallback: return cleaned full HTML if no sections found
+    const fullText = $.text()
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    return fullText.length > maxLength ? fullText.substring(0, maxLength) : fullText;
+  } catch (error) {
+    // If Cheerio parsing fails, fall back to basic HTML stripping
+    console.warn('Cheerio parsing failed, using fallback:', error);
+    const basicText = html
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return basicText.length > maxLength ? basicText.substring(0, maxLength) : basicText;
+  }
+}
+
+/**
+ * Call Claude API with retry logic and rate limit handling
+ */
+async function callClaudeAPI(
+  prompt: string,
+  model: string,
+  systemMessage: string,
+  retries: number = 3
+): Promise<{ content: string; modelUsed: string }> {
+  const delays = [2000, 4000, 8000]; // Exponential backoff delays in ms
+  
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      const response = await fetch(
+        'https://api.anthropic.com/v1/messages',
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": process.env.ANTHROPIC_API_KEY!,
+            "anthropic-version": "2023-06-01",
+          },
+          body: JSON.stringify({
+            model,
+            max_tokens: 4096,
+            temperature: 0,
+            system: systemMessage,
+            messages: [
+              {
+                role: "user",
+                content: prompt,
+              },
+            ],
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        
+        // Handle rate limit (429)
+        if (response.status === 429) {
+          if (attempt < retries - 1) {
+            const delay = delays[attempt] || 8000;
+            console.log(`⚠️  Rate limit hit (429), retrying in ${delay}ms (attempt ${attempt + 1}/${retries})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          } else {
+            // Last retry failed, fallback to Haiku if we were using Sonnet
+            if (model === "claude-sonnet-4-5-20250929") {
+              console.log(`⚠️  Rate limit persists after ${retries} retries, falling back to Claude Haiku`);
+              return callClaudeAPI(prompt, "claude-3-5-haiku-20241022", systemMessage, 1);
+            }
+            throw new Error(`Claude API error: ${response.status} - Rate limit exceeded`);
+          }
+        }
+        
+        console.error(`Claude API request failed:`, {
+          status: response.status,
+          error: errorText.substring(0, 500),
+        });
+        throw new Error(`Claude API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (!data.content || !data.content[0] || !data.content[0].text) {
+        throw new Error("Invalid response structure from Claude API");
+      }
+
+      return {
+        content: data.content[0].text,
+        modelUsed: model,
+      };
+    } catch (error) {
+      if (attempt === retries - 1) {
+        throw error;
+      }
+      const delay = delays[attempt] || 8000;
+      console.log(`⚠️  API call failed, retrying in ${delay}ms (attempt ${attempt + 1}/${retries})`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  
+  throw new Error("Failed to call Claude API after all retries");
+}
+
+/**
  * Parse purchase receipt from email content using Claude AI
  */
 export async function parseReceiptWithAI(
@@ -23,6 +233,20 @@ export async function parseReceiptWithAI(
   emailBody: string,
   emailFrom?: string
 ): Promise<ParsedPurchase> {
+  // Smart HTML extraction to reduce token usage
+  const MAX_LENGTH = 30000;
+  const isHTML = emailBody.trim().startsWith('<') || emailBody.includes('<!DOCTYPE') || emailBody.includes('<html');
+  const extractedBody = isHTML 
+    ? extractOrderDetailsFromHTML(emailBody, MAX_LENGTH)
+    : emailBody.length > MAX_LENGTH 
+      ? emailBody.substring(0, MAX_LENGTH)
+      : emailBody;
+  
+  const extractionMethod = isHTML ? 'smart HTML extraction' : 'full text';
+  const bodyLength = extractedBody.length;
+  const originalLength = emailBody.length;
+  const reduction = originalLength > bodyLength ? ` (reduced from ${originalLength} chars)` : '';
+
   const prompt = `You are a STRICT data extraction tool. Your job is to extract ONLY what is explicitly visible in THIS SPECIFIC EMAIL below. You NEVER guess, infer, or make up information. When information is missing, you return null or empty arrays. You prioritize ACCURACY over completeness.
 
 CRITICAL: EACH EMAIL IS DIFFERENT - EXTRACT ONLY FROM THIS EMAIL
@@ -38,7 +262,7 @@ EMAIL METADATA:
 - Subject: ${emailSubject}
 
 EMAIL BODY:
-${emailBody.substring(0, 12000)} // Increased to capture item details in large HTML emails
+${extractedBody}
 
 REMEMBER: 
 - This is a UNIQUE email from "${emailFrom || 'unknown sender'}" about "${emailSubject}"
@@ -302,56 +526,29 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
       throw new Error("ANTHROPIC_API_KEY not configured");
     }
 
-    console.log('Using Claude Sonnet 4.5 (2025) for receipt parsing - highly accurate for complex extraction');
+    // Determine model: use Haiku by default, Sonnet as fallback
+    const preferredModel = process.env.CLAUDE_MODEL === 'sonnet' 
+      ? "claude-sonnet-4-5-20250929"
+      : "claude-3-5-haiku-20241022";
+    
+    console.log(`Using Claude ${preferredModel.includes('haiku') ? 'Haiku' : 'Sonnet 4.5'} for receipt parsing`);
     console.log(`=== EMAIL BEING PARSED ===`);
     console.log(`From: ${emailFrom || 'Unknown sender'}`);
     console.log(`Subject: ${emailSubject}`);
-    console.log(`Body length: ${emailBody.length} chars (sending first ${Math.min(12000, emailBody.length)} to AI)`);
+    console.log(`Body: ${extractionMethod}${reduction}, sending ${bodyLength} chars to AI`);
     console.log(`Body preview (first 800 chars):`);
-    console.log(emailBody.substring(0, 800));
-    console.log(`... (truncated) ...`);
+    console.log(extractedBody.substring(0, 800));
+    if (bodyLength > 800) {
+      console.log(`... (truncated) ...`);
+    }
     console.log(`========================`);
 
-    const response = await fetch(
-      'https://api.anthropic.com/v1/messages',
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": process.env.ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-5-20250929", // Using Claude Sonnet 4.5 (2025) - more accurate for complex extraction
-          max_tokens: 4096,
-          temperature: 0, // Zero temp for maximum determinism
-          system: "You are a strict data extraction tool. Extract ONLY what you see in the email provided. DO NOT reuse examples, templates, or data from previous emails. Each email is completely independent. If you cannot find specific items with names and prices in THIS email, return an empty items array.",
-          messages: [
-            {
-              role: "user",
-              content: prompt,
-            },
-          ],
-        }),
-      }
-    );
+    const systemMessage = "You are a strict data extraction tool. Extract ONLY what you see in the email provided. DO NOT reuse examples, templates, or data from previous emails. Each email is completely independent. If you cannot find specific items with names and prices in THIS email, return an empty items array.";
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Claude API request failed:`, {
-        status: response.status,
-        error: errorText.substring(0, 500),
-      });
-      throw new Error(`Claude API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-
-    if (!data.content || !data.content[0] || !data.content[0].text) {
-      throw new Error("Invalid response structure from Claude API");
-    }
-
-    const content = data.content[0].text;
+    // Call API with retry logic
+    let result = await callClaudeAPI(prompt, preferredModel, systemMessage);
+    let content = result.content;
+    let modelUsed = result.modelUsed;
 
     // DEBUG: Log the raw AI response
     console.log('=== RAW AI RESPONSE (first 500 chars) ===');
@@ -370,9 +567,38 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
     console.log(jsonText.substring(0, 500));
 
     try {
-      const parsed = JSON.parse(jsonText) as ParsedPurchase;
+      let parsed = JSON.parse(jsonText) as ParsedPurchase;
 
-      console.log('=== AI PARSED RESULT ===');
+      // Fallback to Sonnet if Haiku returned empty items but there's an order confirmation
+      if (modelUsed.includes('haiku') && 
+          (!parsed.items || parsed.items.length === 0) && 
+          (parsed.orderNumber || parsed.store)) {
+        console.log(`⚠️  Haiku returned no items but found order confirmation, trying Sonnet 4.5 for better extraction...`);
+        try {
+          const sonnetResult = await callClaudeAPI(prompt, "claude-sonnet-4-5-20250929", systemMessage, 1);
+          const sonnetContent = sonnetResult.content;
+          let sonnetJsonText = sonnetContent.trim();
+          if (sonnetJsonText.startsWith("```")) {
+            sonnetJsonText = sonnetJsonText.replace(/^```json\n?/, "").replace(/\n?```$/, "");
+          }
+          sonnetJsonText = sonnetJsonText.replace(/^```\n?/, "").replace(/\n?```$/, "");
+          const sonnetParsed = JSON.parse(sonnetJsonText) as ParsedPurchase;
+          
+          // Only use Sonnet result if it found items
+          if (sonnetParsed.items && sonnetParsed.items.length > 0) {
+            console.log(`✅ Sonnet found ${sonnetParsed.items.length} item(s), using Sonnet result`);
+            parsed = sonnetParsed;
+            modelUsed = "claude-sonnet-4-5-20250929";
+            content = sonnetContent;
+          } else {
+            console.log(`⚠️  Sonnet also returned no items, using Haiku result`);
+          }
+        } catch (fallbackError) {
+          console.log(`⚠️  Sonnet fallback failed, using Haiku result:`, fallbackError);
+        }
+      }
+
+      console.log(`=== AI PARSED RESULT (using ${modelUsed.includes('haiku') ? 'Haiku' : 'Sonnet 4.5'}) ===`);
       console.log({
         store: parsed.store,
         itemCount: parsed.items?.length || 0,
@@ -1031,11 +1257,12 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
         if (result.orderNumber || result.store) {
           console.log('⚠️  WARNING: AI found order confirmation (order number or store) but NO ITEMS');
           console.log('   This could mean:');
-          console.log('   1. Item details are beyond the 12,000 character limit');
+          console.log(`   1. Item details are beyond the ${MAX_LENGTH.toLocaleString()} character limit (or not in extracted section)`);
           console.log('   2. Email is a shipping/tracking notification (no itemized list)');
           console.log('   3. Email says "click to view order" without showing items');
           console.log('   4. HTML structure is too complex for AI to parse');
           console.log(`   Order: ${result.orderNumber || 'N/A'}, Store: ${result.store || 'N/A'}`);
+          console.log(`   Extraction method: ${extractionMethod}, Model used: ${modelUsed.includes('haiku') ? 'Haiku' : 'Sonnet 4.5'}`);
         } else {
           console.log('No clothing items found in email (not an order confirmation)');
         }
