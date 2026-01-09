@@ -236,13 +236,40 @@ export async function parseReceiptWithAI(
   // Smart HTML extraction to reduce token usage
   const MAX_LENGTH = 30000;
   const isHTML = emailBody.trim().startsWith('<') || emailBody.includes('<!DOCTYPE') || emailBody.includes('<html');
-  const extractedBody = isHTML 
-    ? extractOrderDetailsFromHTML(emailBody, MAX_LENGTH)
-    : emailBody.length > MAX_LENGTH 
+
+  let extractedBody: string;
+  let extractionMethod: string;
+
+  if (isHTML) {
+    const smartExtracted = extractOrderDetailsFromHTML(emailBody, MAX_LENGTH);
+
+    // Fallback: If smart extraction is too aggressive (< 15% of original or < 8000 chars),
+    // use basic HTML stripping to preserve more content
+    const reductionRatio = smartExtracted.length / emailBody.length;
+    if (reductionRatio < 0.15 || smartExtracted.length < 8000) {
+      console.log(`⚠️  Smart HTML extraction too aggressive (${smartExtracted.length} chars from ${emailBody.length}), falling back to full HTML stripping`);
+      // Basic HTML stripping that preserves all text
+      const fullTextExtracted = emailBody
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      extractedBody = fullTextExtracted.length > MAX_LENGTH
+        ? fullTextExtracted.substring(0, MAX_LENGTH)
+        : fullTextExtracted;
+      extractionMethod = 'full HTML stripping (smart extraction fallback)';
+    } else {
+      extractedBody = smartExtracted;
+      extractionMethod = 'smart HTML extraction';
+    }
+  } else {
+    extractedBody = emailBody.length > MAX_LENGTH
       ? emailBody.substring(0, MAX_LENGTH)
       : emailBody;
-  
-  const extractionMethod = isHTML ? 'smart HTML extraction' : 'full text';
+    extractionMethod = 'full text';
+  }
+
   const bodyLength = extractedBody.length;
   const originalLength = emailBody.length;
   const reduction = originalLength > bodyLength ? ` (reduced from ${originalLength} chars)` : '';
