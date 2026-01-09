@@ -38,7 +38,7 @@ EMAIL METADATA:
 - Subject: ${emailSubject}
 
 EMAIL BODY:
-${emailBody.substring(0, 12000)} // Increased limit to capture full order details
+${emailBody.substring(0, 8000)} // Reduced to avoid rate limits while capturing order details
 
 REMEMBER: 
 - This is a UNIQUE email from "${emailFrom || 'unknown sender'}" about "${emailSubject}"
