@@ -1028,7 +1028,8 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
         // Strip HTML tags and decode HTML entities for better text matching
         // This is critical because most order confirmation emails are HTML
         // Also extract text from alt attributes, data attributes, and other HTML attributes
-        let cleanEmailBody = emailBody
+        // IMPORTANT: Use extractedBody (what AI saw) instead of emailBody for consistency
+        let cleanEmailBody = extractedBody
           // First, extract text from various HTML attributes before removing tags
           .replace(/alt=["']([^"']+)["']/gi, ' $1 ') // Extract alt text
           .replace(/title=["']([^"']+)["']/gi, ' $1 ') // Extract title text
