@@ -117,7 +117,7 @@ Use null for missing fields.`;
         body: JSON.stringify({
           model: "claude-3-haiku-20240307",
           max_tokens: 2048,
-          temperature: 0.2,
+          temperature: 0, // Set to 0 for maximum determinism, reduce hallucinations
           messages: [
             {
               role: "user",
@@ -145,6 +145,10 @@ Use null for missing fields.`;
 
     const content = data.content[0].text;
 
+    // DEBUG: Log the raw AI response
+    console.log('=== RAW AI RESPONSE (first 500 chars) ===');
+    console.log(content.substring(0, 500));
+
     // Extract JSON from response (handle markdown code blocks if present)
     let jsonText = content.trim();
     if (jsonText.startsWith("```")) {
@@ -154,6 +158,9 @@ Use null for missing fields.`;
     // Remove any remaining markdown
     jsonText = jsonText.replace(/^```\n?/, "").replace(/\n?```$/, "");
 
+    console.log('=== CLEANED JSON (first 500 chars) ===');
+    console.log(jsonText.substring(0, 500));
+
     try {
       const parsed = JSON.parse(jsonText) as ParsedPurchase;
 
@@ -161,6 +168,7 @@ Use null for missing fields.`;
         store: parsed.store,
         itemCount: parsed.items?.length || 0,
         items: parsed.items?.map(i => ({ name: i.name, type: i.type })),
+        orderNumber: parsed.orderNumber
       });
 
       // Validate and clean up the parsed data
