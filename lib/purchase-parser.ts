@@ -19,6 +19,58 @@ export interface ParsedItem {
 }
 
 /**
+ * Extract product images from HTML using Cheerio
+ * Returns structured image data for AI processing
+ */
+function extractProductImages(html: string): Array<{url: string, alt: string, context: string}> {
+  try {
+    const $ = cheerio.load(html);
+    const productImages: Array<{url: string, alt: string, context: string}> = [];
+    const allImages: Array<{url: string, alt: string}> = [];
+
+    $('img').each((_, el) => {
+      const $img = $(el);
+      const src = $img.attr('src') || '';
+      const alt = $img.attr('alt') || '';
+
+      // Track all images with valid URLs for debugging
+      if (src && (src.startsWith('http://') || src.startsWith('https://'))) {
+        allImages.push({url: src, alt: alt});
+
+        // More lenient filtering - exclude only obvious non-product images
+        const altLower = alt.toLowerCase();
+        const srcLower = src.toLowerCase();
+
+        // EXCLUDE images that are clearly not products
+        const isLogo = altLower.includes('logo') || srcLower.includes('logo');
+        const isIcon = altLower.includes('icon') || srcLower.includes('icon') || altLower.includes('social');
+        const isBanner = altLower.includes('banner') || altLower.includes('header');
+        const isTracking = srcLower.includes('tracking') || srcLower.includes('pixel') || srcLower.includes('beacon');
+        const isButton = altLower.includes('button') || srcLower.includes('button');
+        const isTooSmall = srcLower.match(/\d+x\d+/) && parseInt(srcLower.match(/(\d+)x\d+/)?.[1] || '1000') < 50;
+
+        if (!isLogo && !isIcon && !isBanner && !isTracking && !isButton && !isTooSmall) {
+          // Get context from parent elements
+          const parent = $img.parent();
+          const parentText = parent.text().substring(0, 100).trim();
+          productImages.push({url: src, alt: alt, context: parentText});
+        }
+      }
+    });
+
+    console.log(`📷 Image extraction: Found ${allImages.length} total images, ${productImages.length} likely product images`);
+    if (productImages.length > 0) {
+      console.log(`   First 3 product images: ${productImages.slice(0, 3).map(img => `\n      - ${img.url.substring(0, 80)}... (alt: "${img.alt}")`).join('')}`);
+    }
+
+    return productImages;
+  } catch (error) {
+    console.warn('Image extraction failed:', error);
+    return [];
+  }
+}
+
+/**
  * Extract order details sections from HTML email using Cheerio
  * This reduces token usage by focusing on relevant sections
  */
@@ -100,38 +152,9 @@ function extractOrderDetailsFromHTML(html: string, maxLength: number = 30000): s
       }
     });
 
-    // 6. Extract product image URLs
-    const productImages: Array<{url: string, alt: string}> = [];
-    $('img').each((_, el) => {
-      const $img = $(el);
-      const src = $img.attr('src') || '';
-      const alt = $img.attr('alt') || '';
-
-      // Only include images that:
-      // - Have a valid URL (starts with http:// or https://)
-      // - Are likely product images (check context, alt text, or size)
-      if (src && (src.startsWith('http://') || src.startsWith('https://'))) {
-        // Check if this is likely a product image
-        const altLower = alt.toLowerCase();
-        const parent = $img.parent();
-        const parentText = parent.text().toLowerCase();
-
-        // Include if: alt text suggests product, or parent contains product/item/order text
-        if (altLower.includes('product') || altLower.includes('item') ||
-            parentText.includes('product') || parentText.includes('item') ||
-            parentText.includes('order') || alt.length > 10) {
-          productImages.push({url: src, alt: alt});
-        }
-      }
-    });
-
-    // Add product images to extracted text in a structured format
-    if (productImages.length > 0) {
-      extractedText += '\n\nPRODUCT IMAGES:\n';
-      productImages.forEach(img => {
-        extractedText += `<img src="${img.url}" alt="${img.alt}">\n`;
-      });
-    }
+    // 6. Extract product image URLs using shared function
+    // Note: Images are extracted separately and appended later
+    // This keeps the text extraction logic clean
 
     // If we found substantial extracted content, use it
     if (extractedText.trim().length > 500) {
@@ -302,6 +325,20 @@ export async function parseReceiptWithAI(
       ? emailBody.substring(0, MAX_LENGTH)
       : emailBody;
     extractionMethod = 'full text';
+  }
+
+  // Extract product images separately (works for all extraction methods)
+  let productImages: Array<{url: string, alt: string, context: string}> = [];
+  if (isHTML) {
+    productImages = extractProductImages(emailBody);
+
+    // Append product images to extracted body so AI can match them to products
+    if (productImages.length > 0) {
+      extractedBody += '\n\nPRODUCT IMAGES:\n';
+      productImages.forEach(img => {
+        extractedBody += `<img src="${img.url}" alt="${img.alt}" context="${img.context}">\n`;
+      });
+    }
   }
 
   const bodyLength = extractedBody.length;
@@ -478,12 +515,20 @@ CRITICAL EXTRACTION RULES:
 6. Look for order details, line items, product descriptions in structured blocks IN THIS EMAIL
 7. Use null for fields you cannot find - DO NOT make up data or use placeholder values
 8. Extract product image URLs when available:
-   - Look for <img src="..."> tags near product names or in product blocks
-   - Common patterns: "Product Image:", <img alt="[product name]" src="...">, product thumbnails
-   - Extract the FULL URL (must start with http:// or https://)
-   - If image is in the same block as the product name, include it in that item's imageUrl
-   - If no image found for a product, use null (do not make up URLs)
-   - Examples: "https://example.com/product.jpg", "https://cdn.example.com/images/item.png"
+   - Look for <img src="..."> tags in the "PRODUCT IMAGES:" section at the end of the email
+   - Match images to products by:
+     * Checking if the image's "alt" attribute contains the product name, brand, or color
+     * Checking if the image's "context" field contains text near the product in the email
+     * Using image position/order (first image likely matches first product, etc.)
+   - Extract the FULL URL from the src attribute (must start with http:// or https://)
+   - For each product item, try to find a matching image and include its URL in imageUrl field
+   - If multiple images match a product, use the first/best match
+   - If no clear image match for a product, use null (do not make up URLs or reuse images)
+   - Priority matching order:
+     1. Alt text contains exact product name
+     2. Alt text contains brand + product type (e.g., "Nike shoes")
+     3. Context text contains product name
+     4. Sequential matching (1st image → 1st product)
 
 CRITICAL: DO NOT REUSE EXAMPLES OR TEMPLATES
 - DO NOT copy item names from examples or previous emails
