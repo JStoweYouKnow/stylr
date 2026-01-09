@@ -29,13 +29,29 @@ Subject: ${emailSubject}
 Body:
 ${emailBody.substring(0, 4000)} // Limit body length
 
-FIRST: Verify this is a CONFIRMED ORDER email (order confirmation, receipt, or order placed).
-- If this is NOT a confirmed order (e.g., abandoned cart, wishlist, marketing email), return {"items": [], ...other fields...}
-- Only extract from CONFIRMED purchases that have already been placed/ordered
+CRITICAL VERIFICATION STEPS (MUST CHECK IN ORDER):
+
+STEP 1: Verify this email contains ACTUAL ORDER DETAILS
+- Look for: item lists, product names, prices, quantities, order numbers, order totals
+- If this email is ONLY about shipping/tracking (no item list), return {"items": [], "orderNumber": null, "purchaseDate": null, "store": null, "total": null}
+- If this email is ONLY a marketing/promotional email (no actual order), return {"items": [], ...}
+- If this email is an abandoned cart or wishlist (not a confirmed order), return {"items": [], ...}
+- Only proceed if you can find ACTUAL purchased items with names and prices in the email
+
+STEP 2: Verify this is a CONFIRMED ORDER (not a quote, not a saved cart, not a wishlist)
+- Must have: "order confirmation", "order placed", "purchase confirmation", "receipt", or "thank you for your order"
+- Must have: actual item names and prices (not just "items in your cart")
+- If this is NOT a confirmed order, return {"items": [], ...}
+
+STEP 3: Extract ONLY if order details are present
+- If you cannot find specific item names AND prices in the email body, return {"items": [], ...}
+- DO NOT hallucinate or make up item names, prices, or details
+- DO NOT use placeholder values like "Item 1", "Example Product", or generic prices
+- If the email mentions items but doesn't list them (e.g., "your order contains 3 items"), return {"items": [], ...}
 
 CRITICAL: Respond with ONLY a valid JSON object. Do not include any explanatory text, markdown formatting, or code blocks. Return ONLY the raw JSON.
 
-IMPORTANT: Extract the ACTUAL item names, prices, and details from THIS SPECIFIC EMAIL. Do NOT use placeholder or example data.
+IMPORTANT: Extract the ACTUAL item names, prices, and details from THIS SPECIFIC EMAIL. Do NOT use placeholder or example data. If actual data is not present, return empty items array.
 
 Return a JSON object with this exact structure:
 {

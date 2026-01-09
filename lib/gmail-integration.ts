@@ -150,7 +150,7 @@ export async function getGmailClient(userId: string) {
 }
 
 /**
- * Search for purchase-related emails
+ * Search for purchase-related emails with label support
  */
 export async function searchPurchaseEmails(userId: string, daysBack: number = 30) {
   const gmail = await getGmailClient(userId);
@@ -160,56 +160,70 @@ export async function searchPurchaseEmails(userId: string, daysBack: number = 30
   searchDate.setDate(searchDate.getDate() - daysBack);
   const afterDate = Math.floor(searchDate.getTime() / 1000);
 
-  // Build comprehensive search query for purchase confirmations
-  // Cast a wide net and let the AI do strict filtering (AI prompt is now very strict about clothing-only)
-  const query = `
+  // Common Gmail labels for shopping/orders
+  const shoppingLabels = [
+    "Shopping",
+    "Orders", 
+    "Order Confirmations",
+    "Receipts",
+    "Purchases",
+    "Amazon",
+    "E-commerce",
+  ];
+
+  // Build query prioritizing labeled emails first
+  // Priority 1: Emails with shopping labels AND order confirmation subject
+  const labeledQuery = `
     (
-      subject:(
-        "order confirmation" OR
-        "order receipt" OR
-        "order placed" OR
-        "purchase confirmation" OR
-        "thank you for your order" OR
-        "your order" OR
-        order OR
-        confirmed OR
-        "order number" OR
-        "shipment" OR
-        "shipping confirmation" OR
-        "has shipped" OR
-        "tracking" OR
-        "delivery" OR
-        "receipt" OR
-        "invoice"
-      ) OR
-      from:(
-        levi OR levis OR
-        nordstrom OR
-        "banana republic" OR bananarepublic OR
-        gu OR uniqlo OR
-        gap OR oldnavy OR
-        zara OR hm OR "h&m" OR
-        madewell OR jcrew OR "j.crew"
-      )
+      label:(${shoppingLabels.join(" OR ")}) AND
+      subject:("order confirmation" OR "order receipt" OR "order placed" OR "purchase confirmation" OR "thank you for your order" OR "your order #" OR "order number" OR "receipt")
     )
     after:${afterDate}
   `.trim().replace(/\s+/g, " ");
 
-  console.log('Gmail search query:', query);
+  // Priority 2: Emails with order confirmation subjects (even without labels)
+  const subjectQuery = `
+    (
+      subject:("order confirmation" OR "order receipt" OR "order placed" OR "purchase confirmation" OR "thank you for your order" OR "your order #")
+      -subject:("shipping" OR "shipped" OR "tracking" OR "delivery" OR "out for delivery" OR "on the way")
+      -subject:("abandoned" OR "cart" OR "wishlist" OR "saved for later")
+      -subject:("marketing" OR "promotion" OR "deal" OR "sale" OR "discount" OR "coupon")
+    )
+    after:${afterDate}
+  `.trim().replace(/\s+/g, " ");
 
-  const response = await gmail.users.messages.list({
+  // Search for labeled emails first (higher priority)
+  console.log('Gmail search query (labeled):', labeledQuery);
+  const labeledResponse = await gmail.users.messages.list({
     userId: "me",
-    q: query,
-    maxResults: 100, // Limit to avoid rate limits
+    q: labeledQuery,
+    maxResults: 50,
   });
 
-  console.log(`Found ${response.data.messages?.length || 0} potential purchase emails`);
+  const labeledMessages = labeledResponse.data.messages || [];
+  const labeledIds = new Set(labeledMessages.map((m) => m.id));
 
-  return response.data.messages || [];
+  // Search for subject-based emails (lower priority, exclude already found)
+  console.log('Gmail search query (subject):', subjectQuery);
+  const subjectResponse = await gmail.users.messages.list({
+    userId: "me",
+    q: subjectQuery,
+    maxResults: 50,
+  });
+
+  // Combine results, prioritizing labeled emails
+  const subjectMessages = (subjectResponse.data.messages || []).filter(
+    (m) => !labeledIds.has(m.id)
+  );
+
+  const allMessages = [...labeledMessages, ...subjectMessages];
+  console.log(`Found ${allMessages.length} potential purchase emails (${labeledMessages.length} labeled, ${subjectMessages.length} subject-matched)`);
+
+  return allMessages;
 }
 
 /**
- * Get full email content
+ * Get full email content including labels
  */
 export async function getEmailContent(userId: string, messageId: string) {
   const gmail = await getGmailClient(userId);
@@ -240,11 +254,128 @@ export async function getEmailContent(userId: string, messageId: string) {
     }
   }
 
+  // Extract labels
+  const labels = message.data.labelIds || [];
+
   return {
     id: messageId,
     subject,
     body,
+    labels,
   };
+}
+
+/**
+ * Pre-filter emails to skip those that clearly don't contain order details
+ * This prevents sending shipping updates, marketing emails, etc. to the AI
+ */
+export function shouldProcessEmail(subject: string, body: string, labels: string[] = []): {
+  shouldProcess: boolean;
+  reason?: string;
+} {
+  const subjectLower = subject.toLowerCase();
+  const bodyLower = body.substring(0, 1000).toLowerCase(); // Check first 1000 chars for speed
+
+  // EXCLUDE: Shipping/tracking emails (no order details, just shipping status)
+  const shippingKeywords = [
+    "has shipped",
+    "is on the way",
+    "out for delivery",
+    "delivered",
+    "tracking",
+    "track your package",
+    "shipment",
+    "shipping confirmation",
+    "on the way",
+    "en route",
+    "arrived",
+    "delivery update",
+  ];
+  
+  if (shippingKeywords.some(keyword => subjectLower.includes(keyword))) {
+    // BUT allow if email also contains order details (item list, prices)
+    const hasOrderDetails = 
+      bodyLower.includes("item") && bodyLower.includes("$") ||
+      bodyLower.includes("product") && bodyLower.includes("price") ||
+      bodyLower.includes("qty") || bodyLower.includes("quantity");
+    
+    if (!hasOrderDetails) {
+      return { shouldProcess: false, reason: "Shipping/tracking email without order details" };
+    }
+  }
+
+  // EXCLUDE: Marketing/promotional emails
+  const marketingKeywords = [
+    "abandoned cart",
+    "items left in your cart",
+    "forgot something",
+    "complete your order",
+    "wishlist",
+    "saved for later",
+    "promotion",
+    "deal",
+    "discount",
+    "sale",
+    "coupon",
+    "free shipping",
+    "special offer",
+    "newsletter",
+    "catalog",
+  ];
+  
+  if (marketingKeywords.some(keyword => subjectLower.includes(keyword))) {
+    return { shouldProcess: false, reason: "Marketing/promotional email" };
+  }
+
+  // EXCLUDE: Non-order emails (confirmations for subscriptions, services, etc.)
+  const nonOrderKeywords = [
+    "subscription",
+    "membership",
+    "renewal",
+    "payment receipt", // Usually for services, not products
+    "invoice", // Generic invoices might not be product orders
+  ];
+  
+  // But allow invoices/receipts if they contain product/item information
+  if (nonOrderKeywords.some(keyword => subjectLower.includes(keyword))) {
+    const hasProductInfo = 
+      bodyLower.includes("item") || 
+      bodyLower.includes("product") || 
+      bodyLower.includes("qty") ||
+      bodyLower.includes("quantity");
+    
+    if (!hasProductInfo) {
+      return { shouldProcess: false, reason: "Non-product order email (subscription/service)" };
+    }
+  }
+
+  // INCLUDE: Emails with shopping labels (likely important)
+  const shoppingLabels = ["shopping", "orders", "receipts", "purchases", "amazon"];
+  const hasShoppingLabel = labels.some(label => 
+    shoppingLabels.some(shoppingLabel => label.toLowerCase().includes(shoppingLabel))
+  );
+  
+  if (hasShoppingLabel) {
+    return { shouldProcess: true, reason: "Email has shopping label" };
+  }
+
+  // INCLUDE: Order confirmation keywords in subject
+  const orderKeywords = [
+    "order confirmation",
+    "order receipt",
+    "order placed",
+    "purchase confirmation",
+    "thank you for your order",
+    "your order #",
+    "order number",
+  ];
+  
+  if (orderKeywords.some(keyword => subjectLower.includes(keyword))) {
+    return { shouldProcess: true, reason: "Order confirmation email" };
+  }
+
+  // Default: Process if it made it through the search query
+  return { shouldProcess: true, reason: "Matches search criteria" };
 }
 
 /**

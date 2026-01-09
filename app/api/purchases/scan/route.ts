@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { searchPurchaseEmails, getEmailContent } from "@/lib/gmail-integration";
+import { searchPurchaseEmails, getEmailContent, shouldProcessEmail } from "@/lib/gmail-integration";
 import { parseReceiptWithAI, normalizeClothingType, estimateVibe } from "@/lib/purchase-parser";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
     let foundCount = 0;
     let newCount = 0;
     let duplicateCount = 0;
+    let skippedCount = 0;
     const purchases = [];
 
     // Process each email
@@ -44,10 +45,23 @@ export async function POST(request: NextRequest) {
       if (!message.id) continue;
 
       try {
-        // Get email content
+        // Get email content (includes labels now)
         const email = await getEmailContent(userId, message.id);
 
         console.log(`Processing email: "${email.subject.substring(0, 100)}"`);
+        if (email.labels && email.labels.length > 0) {
+          console.log(`  Labels: ${email.labels.join(", ")}`);
+        }
+
+        // Pre-filter: Skip emails that clearly don't contain order details
+        const filterResult = shouldProcessEmail(email.subject, email.body, email.labels || []);
+        if (!filterResult.shouldProcess) {
+          console.log(`  ⏭️  Skipping: ${filterResult.reason}`);
+          skippedCount++;
+          continue;
+        }
+
+        console.log(`  ✅ Processing: ${filterResult.reason || "Matches criteria"}`);
 
         // Parse receipt with AI
         const parsed = await parseReceiptWithAI(email.subject, email.body);
@@ -118,11 +132,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       scanned: messages.length,
+      skipped: skippedCount,
       found: foundCount,
       new: newCount,
       duplicates: duplicateCount,
       purchases,
-      message: `Scanned ${messages.length} emails, found ${foundCount} purchases, added ${newCount} new items`,
+      message: `Scanned ${messages.length} emails, skipped ${skippedCount} non-order emails, found ${foundCount} purchases, added ${newCount} new items`,
     });
   } catch (error) {
     console.error("Purchase scan error:", error);
