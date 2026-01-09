@@ -148,38 +148,73 @@ Use null for missing fields.`;
       });
 
       // Validate and clean up the parsed data
-      // CODE-LEVEL FILTER: Block non-clothing items that AI might have extracted
-      const blockedTypes = [
-        'home goods', 'home', 'furniture', 'kitchen', 'bath', 'bathroom',
-        'food', 'beverage', 'drink', 'restaurant', 'meal', 'grocery',
-        'electronics', 'tech', 'phone', 'computer', 'gadget',
-        'beauty', 'skincare', 'makeup', 'cosmetics', 'personal care',
-        'book', 'toy', 'game', 'gift card', 'card'
+      // CODE-LEVEL FILTER: Only allow items with valid clothing types (WHITELIST approach)
+      const allowedClothingTypes = [
+        // Tops
+        'shirt', 't-shirt', 'tshirt', 'tee', 'blouse', 'top', 'tank', 'tank top', 'crop top',
+        'sweater', 'hoodie', 'sweatshirt', 'cardigan', 'pullover', 'vest',
+        // Bottoms
+        'pants', 'jeans', 'trousers', 'shorts', 'skirt', 'leggings', 'joggers', 'chinos', 'slacks',
+        // Outerwear
+        'jacket', 'coat', 'blazer', 'parka', 'windbreaker', 'bomber', 'raincoat',
+        // Dresses
+        'dress', 'gown', 'sundress', 'maxi', 'midi', 'mini',
+        // Footwear
+        'shoes', 'sneakers', 'boots', 'sandals', 'heels', 'flats', 'loafers', 'slippers',
+        'athletic shoes', 'running shoes', 'tennis shoes',
+        // Intimates & Basics
+        'socks', 'underwear', 'bra', 'lingerie', 'boxers', 'briefs', 'panties',
+        // Accessories (wearable only)
+        'hat', 'cap', 'beanie', 'scarf', 'belt', 'gloves', 'mittens',
+        // Active/Swim
+        'activewear', 'swimwear', 'swimsuit', 'bikini', 'trunks', 'athletic wear',
+        'yoga pants', 'sports bra', 'compression'
       ];
 
       const blockedKeywords = [
-        'caddy', 'organizer', 'storage', 'container', 'basket',
-        'burger', 'pizza', 'sandwich', 'fries', 'drink', 'coffee', 'tea',
-        'shampoo', 'conditioner', 'lotion', 'soap', 'cream',
-        'charger', 'cable', 'case', 'cover', 'screen protector'
+        // Home goods
+        'caddy', 'organizer', 'storage', 'container', 'basket', 'holder', 'rack', 'shelf',
+        'towel', 'mat', 'rug', 'curtain', 'pillow', 'blanket', 'sheet',
+        // Food
+        'burger', 'pizza', 'sandwich', 'fries', 'meal', 'food',
+        // Drinks
+        'coffee', 'tea', 'drink', 'beverage', 'water', 'juice', 'soda',
+        // Beauty/Personal care
+        'shampoo', 'conditioner', 'lotion', 'soap', 'cream', 'serum', 'oil',
+        'makeup', 'cosmetic', 'skincare', 'facial', 'cleanser',
+        // Electronics/Tech
+        'charger', 'cable', 'phone', 'electronic', 'device', 'gadget',
+        'screen protector', 'earbuds', 'headphones',
+        // Other non-clothing
+        'book', 'notebook', 'pen', 'pencil', 'toy', 'game',
+        'gift card', 'card', 'voucher', 'certificate'
       ];
 
       const isClothingItem = (item: ParsedItem): boolean => {
         const itemName = item.name?.toLowerCase() || '';
         const itemType = item.type?.toLowerCase() || '';
 
-        // Check if type matches blocked types
-        if (blockedTypes.some(blocked => itemType.includes(blocked))) {
-          console.log(`❌ Blocked non-clothing item by type: ${item.name} (type: ${item.type})`);
+        // WHITELIST: Type must match an allowed clothing type
+        const hasValidType = allowedClothingTypes.some(validType =>
+          itemType.includes(validType)
+        );
+
+        if (!hasValidType) {
+          console.log(`❌ Blocked item - not a valid clothing type: ${item.name} (type: "${item.type}")`);
           return false;
         }
 
-        // Check if name contains blocked keywords
-        if (blockedKeywords.some(keyword => itemName.includes(keyword))) {
-          console.log(`❌ Blocked non-clothing item by keyword: ${item.name}`);
+        // BLOCKLIST: Name must NOT contain blocked keywords
+        const hasBlockedKeyword = blockedKeywords.some(keyword =>
+          itemName.includes(keyword)
+        );
+
+        if (hasBlockedKeyword) {
+          console.log(`❌ Blocked item - contains blocked keyword: ${item.name}`);
           return false;
         }
 
+        console.log(`✅ Allowed clothing item: ${item.name} (type: ${item.type})`);
         return true;
       };
 
