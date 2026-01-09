@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { PurchasesSkeleton } from "@/components/LoadingSkeleton";
+import ManualPurchaseForm from "@/components/purchases/ManualPurchaseForm";
 
 interface Purchase {
   id: number;
@@ -37,6 +38,7 @@ export default function PurchasesPage() {
   const [stats, setStats] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"purchases" | "recommendations">("purchases");
+  const [showManualForm, setShowManualForm] = useState(false);
 
   useEffect(() => {
     if (status === "loading") return;
@@ -180,11 +182,32 @@ export default function PurchasesPage() {
 
   return (
     <div className="max-w-6xl mx-auto p-6">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2">Purchase History</h1>
-        <p className="text-gray-600">
-          Track your clothing purchases and get smart recommendations
-        </p>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Purchase History</h1>
+          <p className="text-gray-600">
+            Track your clothing purchases and get smart recommendations
+          </p>
+        </div>
+        <button
+          onClick={() => setShowManualForm(true)}
+          className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors flex items-center gap-2"
+        >
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 4v16m8-8H4"
+            />
+          </svg>
+          Add Manually
+        </button>
       </div>
 
       {/* Stats Cards */}
@@ -409,6 +432,16 @@ export default function PurchasesPage() {
             ))
           )}
         </div>
+      )}
+
+      {showManualForm && (
+        <ManualPurchaseForm
+          onSuccess={() => {
+            fetchPurchases();
+            fetchRecommendations();
+          }}
+          onClose={() => setShowManualForm(false)}
+        />
       )}
     </div>
   );
