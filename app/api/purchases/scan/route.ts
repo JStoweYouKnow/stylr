@@ -60,15 +60,20 @@ export async function POST(request: NextRequest) {
         console.log(`Found ${parsed.items.length} clothing items from ${parsed.store || 'unknown store'}`);
         foundCount++;
 
-        // Check if we already have this order
+        // Check if we already have this order (check if ANY item from this order exists)
+        // This prevents re-importing the same order on subsequent scans
         if (parsed.orderNumber) {
-          const existing = await prisma.purchaseHistory.findUnique({
-            where: { orderNumber: parsed.orderNumber },
+          const existing = await prisma.purchaseHistory.findFirst({
+            where: {
+              orderNumber: parsed.orderNumber,
+              userId: userId
+            },
           });
 
           if (existing) {
+            console.log(`Skipping duplicate order: ${parsed.orderNumber}`);
             duplicateCount++;
-            continue;
+            continue; // Skip this entire order - we've already processed it before
           }
         }
 

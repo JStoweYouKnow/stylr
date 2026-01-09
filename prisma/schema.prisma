@@ -204,7 +204,7 @@ model PurchaseHistory {
   store           String
   purchaseDate    DateTime @map("purchase_date")
   price           Float?
-  orderNumber     String?  @unique @map("order_number")
+  orderNumber     String?  @map("order_number") // Removed @unique - orders can have multiple items
 
   // Extracted metadata (from AI)
   itemType        String?  @map("item_type")
