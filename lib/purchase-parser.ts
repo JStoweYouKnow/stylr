@@ -582,6 +582,11 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
         const storeLower = storeName.toLowerCase().trim();
 
         // BLOCKLIST: Reject restaurant/food-related store names
+        // Exception: "Banana Republic" is a clothing store, not a restaurant
+        if (storeLower === 'banana republic') {
+          return true; // Allow Banana Republic (it's a clothing store)
+        }
+
         const restaurantKeywords = [
           'cheeseburger', 'burger', 'restaurant', 'cafe', 'diner', 'bistro', 'pizza',
           'sandwich', 'grill', 'steakhouse', 'sushi', 'chinese', 'mexican', 'italian',
