@@ -511,13 +511,20 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
         }
 
         // VALIDATION: Reject items with suspiciously generic or placeholder-like names
+        // But be careful - don't block legitimate product names that happen to start with common words
         const placeholderPatterns = [
-          /^(item|product|product name|item name|description|name)[:\s]*$/i,
-          /^(example|sample|placeholder|test|n\/a|na|tbd)/i,
-          /^(order|purchase|item)\s*#?\d*$/i,
+          /^(item|product|product name|item name|description|name)[:\s]*$/i, // Only match if it's JUST this word
+          /^(example|sample|placeholder|test|n\/a|na|tbd)\s*$/i, // Only match if it's JUST this word
+          /^(order|purchase|item)\s*#?\d+\s*$/i, // Match "Item #123" but not "Item Name: Product"
         ];
         
-        if (placeholderPatterns.some(pattern => pattern.test(item.name || ''))) {
+        // Only reject if the ENTIRE name matches a placeholder pattern (not just starts with it)
+        const isPlaceholder = placeholderPatterns.some(pattern => {
+          const match = item.name?.match(pattern);
+          return match && match[0].trim().toLowerCase() === item.name.trim().toLowerCase();
+        });
+        
+        if (isPlaceholder) {
           console.log(`❌ Blocked item - name looks like placeholder or generic: "${item.name}"`);
           return false;
         }
@@ -650,17 +657,33 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
       const validatedItems = filteredItems.filter(item => {
         if (!item.name) return false;
         
-        const emailText = `${emailSubject} ${emailBody}`.toLowerCase();
+        // Strip HTML tags and decode HTML entities for better text matching
+        // This is critical because most order confirmation emails are HTML
+        let cleanEmailBody = emailBody
+          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') // Remove script tags
+          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '') // Remove style tags
+          .replace(/<[^>]+>/g, ' ') // Remove all HTML tags, replace with space
+          .replace(/&nbsp;/g, ' ') // Replace &nbsp; with space
+          .replace(/&amp;/g, '&') // Decode &amp;
+          .replace(/&lt;/g, '<') // Decode &lt;
+          .replace(/&gt;/g, '>') // Decode &gt;
+          .replace(/&quot;/g, '"') // Decode &quot;
+          .replace(/&#39;/g, "'") // Decode &#39;
+          .replace(/&[a-z]+;/gi, ' ') // Replace other HTML entities with space
+          .replace(/\s+/g, ' ') // Normalize whitespace
+          .trim();
+        
+        const emailText = `${emailSubject} ${cleanEmailBody}`.toLowerCase();
         const itemNameLower = item.name.toLowerCase();
         
         // Check if significant parts of the item name appear in the email
         // Extract key words from item name (remove common stop words)
         const stopWords = ['mens', 'womens', 'mens', 'womens', 'the', 'and', 'for', 'with'];
         const itemKeywords = itemNameLower
-          .split(/\s+/)
+          .split(/[\s\-_]+/) // Split on spaces, hyphens, and underscores (HTML might use different separators)
           .filter(word => word.length > 2) // Include 3+ char words (allows "red", "tab", etc.)
           .filter(word => !stopWords.includes(word))
-          .filter(word => word.length > 3 || itemNameLower.split(/\s+/).length <= 4); // Keep short words only if item name is short
+          .filter(word => !/^\d+$/.test(word) || word.length <= 4); // Keep short numbers like "501" but filter long numbers
         
         // For item names with multiple words, at least 2 keywords should match
         // For shorter names, the whole name or significant portion should match
@@ -668,13 +691,21 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
         for (const keyword of itemKeywords) {
           if (emailText.includes(keyword)) {
             matches++;
+          } else if (/^\d+$/.test(keyword)) {
+            // Special handling for numeric codes like "501" - they might appear in different formats
+            // Check if the number appears anywhere in the email (might be in attributes, alt text, etc.)
+            const numPattern = new RegExp(`\\b${keyword}\\b`);
+            if (numPattern.test(emailText)) {
+              matches++;
+            }
           }
         }
         
-        // More lenient matching: require at least 50% of keywords (reduced from 60%)
-        // This accounts for product names that might be abbreviated or formatted differently in emails
-        const requiredMatches = itemKeywords.length >= 5 ? Math.ceil(itemKeywords.length * 0.5) : 
-                                itemKeywords.length === 4 ? 2 : 
+        // More lenient matching: require at least 40% of keywords for HTML emails
+        // HTML emails often have product names split across tags or formatted differently
+        // Also, numbers like "501" might appear as "501" or "five zero one" or in attributes
+        const requiredMatches = itemKeywords.length >= 5 ? Math.ceil(itemKeywords.length * 0.4) : 
+                                itemKeywords.length === 4 ? 1 : 
                                 itemKeywords.length === 3 ? 1 : 
                                 itemKeywords.length === 2 ? 1 : 
                                 itemKeywords.length === 1 ? 1 : 0;
