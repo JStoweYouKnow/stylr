@@ -268,7 +268,7 @@ export async function searchPurchaseEmails(userId: string, daysBack: number = 30
 
   // Combine results, prioritizing labeled emails
   const subjectMessages = (subjectResponse.data.messages || []).filter(
-    (m) => !labeledIds.has(m.id)
+    (m) => m.id && !labeledIds.has(m.id)
   );
 
   const allMessages = [...labeledMessages, ...subjectMessages];
@@ -377,9 +377,9 @@ export async function searchPurchaseEmails(userId: string, daysBack: number = 30
       if (labeledFromFallback > 0) {
         console.log(`  ✅ Found ${labeledFromFallback} additional labeled emails via fallback approach`);
         // Rebuild allMessages with updated labeledMessages
-        const updatedLabeledIds = new Set(labeledMessages.map((m) => m.id));
+        const updatedLabeledIds = new Set(labeledMessages.map((m) => m.id).filter((id): id is string => !!id));
         const subjectMessages = (subjectResponse.data.messages || []).filter(
-          (m) => !updatedLabeledIds.has(m.id)
+          (m) => m.id && !updatedLabeledIds.has(m.id)
         );
         return [...labeledMessages, ...subjectMessages];
       } else {
