@@ -29,6 +29,7 @@ export async function POST(request: NextRequest) {
         found: 0,
         new: 0,
         duplicates: 0,
+        addedToWardrobe: 0,
         purchases: [],
         message: "No purchase emails found in the specified time range",
       });
@@ -38,6 +39,7 @@ export async function POST(request: NextRequest) {
     let newCount = 0;
     let duplicateCount = 0;
     let skippedCount = 0;
+    let addedToWardrobeCount = 0;
     const purchases = [];
     
     // Track item names across emails to detect template reuse
@@ -115,8 +117,9 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Save each item from the order
+        // Save each item from the order and add to wardrobe
         for (const item of parsed.items) {
+          // First create the purchase history entry
           const purchase = await prisma.purchaseHistory.create({
             data: {
               userId,
@@ -133,8 +136,48 @@ export async function POST(request: NextRequest) {
               estimatedVibe: estimateVibe(item.name),
               emailId: message.id,
               emailSubject: email.subject,
+              addedToWardrobe: false, // Will update after creating clothing item
             },
           });
+
+          // Create a clothing item in the wardrobe
+          try {
+            // Generate a placeholder image URL based on item type
+            const itemType = item.type ? normalizeClothingType(item.type) : 'clothing';
+            const placeholderImage = `https://via.placeholder.com/400x500/9ca3af/ffffff?text=${encodeURIComponent(itemType || 'Item')}`;
+
+            const clothingItem = await prisma.clothingItem.create({
+              data: {
+                userId,
+                imageUrl: placeholderImage,
+                type: itemType,
+                primaryColor: item.color || null,
+                brand: item.brand || null,
+                vibe: estimateVibe(item.name),
+                notes: `Purchased from ${parsed.store || "Unknown"} on ${parsed.purchaseDate || new Date().toISOString().split('T')[0]}${item.price ? ` for $${item.price}` : ''}`,
+                tags: [
+                  parsed.store || "Unknown",
+                  ...(item.brand ? [item.brand] : []),
+                  ...(item.color ? [item.color] : []),
+                ].filter(Boolean),
+              },
+            });
+
+            // Link the purchase to the clothing item
+            await prisma.purchaseHistory.update({
+              where: { id: purchase.id },
+              data: {
+                addedToWardrobe: true,
+                clothingItemId: clothingItem.id,
+              },
+            });
+
+            addedToWardrobeCount++;
+            console.log(`✅ Added "${item.name}" to wardrobe (ID: ${clothingItem.id})`);
+          } catch (wardrobeError) {
+            console.error(`⚠️  Failed to add "${item.name}" to wardrobe:`, wardrobeError);
+            // Continue - purchase is still tracked even if wardrobe addition fails
+          }
 
           purchases.push(purchase);
           newCount++;
@@ -179,8 +222,9 @@ export async function POST(request: NextRequest) {
       found: foundCount,
       new: newCount,
       duplicates: duplicateCount,
+      addedToWardrobe: addedToWardrobeCount,
       purchases,
-      message: `Scanned ${messages.length} emails, skipped ${skippedCount} non-order emails, found ${foundCount} purchases, added ${newCount} new items`,
+      message: `Scanned ${messages.length} emails, skipped ${skippedCount} non-order emails, found ${foundCount} purchases, added ${newCount} new items${addedToWardrobeCount > 0 ? ` (${addedToWardrobeCount} added to wardrobe)` : ''}`,
     });
   } catch (error) {
     console.error("Purchase scan error:", error);
