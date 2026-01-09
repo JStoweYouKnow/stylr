@@ -22,7 +22,9 @@ export async function parseReceiptWithAI(
   emailSubject: string,
   emailBody: string
 ): Promise<ParsedPurchase> {
-  const prompt = `You are extracting clothing purchases from ORDER CONFIRMATION emails ONLY.
+  const prompt = `You are a STRICT data extraction tool. Your job is to extract ONLY what is explicitly visible in the email text below. You NEVER guess, infer, or make up information. When information is missing, you return null or empty arrays. You prioritize ACCURACY over completeness.
+
+You are extracting clothing purchases from ORDER CONFIRMATION emails ONLY.
 
 Subject: ${emailSubject}
 
@@ -36,6 +38,7 @@ STEP 1: Verify this email contains ACTUAL ORDER DETAILS
 - If this email is ONLY about shipping/tracking (no item list), return {"items": [], "orderNumber": null, "purchaseDate": null, "store": null, "total": null}
 - If this email is ONLY a marketing/promotional email (no actual order), return {"items": [], ...}
 - If this email is an abandoned cart or wishlist (not a confirmed order), return {"items": [], ...}
+- If this email is from a NON-CLOTHING brand (Apple, Anthropic, OpenAI, Google, Microsoft, Netflix, Spotify, etc.), return {"items": [], ...}
 - Only proceed if you can find ACTUAL purchased items with names and prices in the email
 
 STEP 2: Verify this is a CONFIRMED ORDER (not a quote, not a saved cart, not a wishlist)
@@ -51,7 +54,24 @@ STEP 3: Extract ONLY if order details are present
 
 CRITICAL: Respond with ONLY a valid JSON object. Do not include any explanatory text, markdown formatting, or code blocks. Return ONLY the raw JSON.
 
-IMPORTANT: Extract the ACTUAL item names, prices, and details from THIS SPECIFIC EMAIL. Do NOT use placeholder or example data. If actual data is not present, return empty items array.
+ABSOLUTE RULE: When in doubt, return {"items": []}. It is BETTER to return NO items than to GUESS or MAKE UP items.
+
+DO NOT GUESS:
+- DO NOT infer items if you don't see them explicitly listed
+- DO NOT create items from brand names alone
+- DO NOT make up product names if you only see generic descriptions
+- DO NOT estimate prices if they're not shown
+- DO NOT assume quantities if they're not specified
+- DO NOT extract items from order totals without line items
+- DO NOT create items from shipping notifications
+- DO NOT extract from promotional content
+
+EXTRACTION RULE: Only extract an item if you can see:
+1. A SPECIFIC product name (not just brand, not generic)
+2. A SPECIFIC price for that item
+3. Both must be visible in the same product block/line item
+
+If ANY of these are missing, DO NOT create an item. Return empty items array instead.
 
 Return a JSON object with this exact structure:
 {
@@ -108,6 +128,11 @@ If the answer is NO, DO NOT include it in the items array.
 
 If this email contains ONLY non-clothing items, return {"items": [], ...other fields...}
 If mixed items, extract ONLY the wearable clothing items.
+
+EXCLUDE: Emails from non-clothing brands/companies
+- These companies NEVER sell clothing: Apple, Anthropic, OpenAI, Google, Microsoft, Netflix, Spotify, Adobe, Salesforce, GitHub, AWS, etc.
+- If the email is from one of these companies (check sender, subject, or body), return {"items": [], ...}
+- Even if the email mentions "order confirmation", these companies don't sell clothing, so skip them
 
 CRITICAL EXTRACTION RULES:
 1. Look for STRUCTURED PRODUCT BLOCKS in the email - these typically contain:
@@ -171,16 +196,26 @@ Each product block should have at minimum:
 MANDATORY: Each item MUST have a specific product name, not just a brand.
 - ❌ WRONG: {"name": "Levi's", "brand": "Levi's"} - This is just a brand, not an item
 - ❌ WRONG: {"name": "Nike", "brand": "Nike"} - This is just a brand, not an item
-- ✅ CORRECT: {"name": "Men's 501 Original Fit Jeans", "brand": "Levi's"} - This has a specific product
-- ✅ CORRECT: {"name": "Air Max 90 Sneakers", "brand": "Nike"} - This has a specific product
+- ❌ WRONG: {"name": "Levi's Item", "brand": "Levi's"} - Too generic, no product detail
+- ❌ WRONG: {"name": "Product from Levi's", "brand": "Levi's"} - Generic placeholder name
+- ✅ CORRECT: {"name": "Men's 501 Original Fit Jeans", "brand": "Levi's"} - Specific product
+- ✅ CORRECT: {"name": "Air Max 90 Sneakers", "brand": "Nike"} - Specific product
+- ✅ CORRECT: {"name": "Red Tab™ Men's Overalls", "brand": "Levi's"} - Specific product with details
+
+CRITICAL: If you cannot see BOTH a specific product name AND a specific price for the same item in the email, DO NOT create that item.
+- If product name is missing → DO NOT create item
+- If price is missing → DO NOT create item
+- If product name is generic/placeholder → DO NOT create item
+- If you have to guess or infer → DO NOT create item
 
 If the email only mentions a brand name without specific product names, DO NOT create items.
 Only extract items where you can find BOTH:
-- A specific product name (e.g., "501 Jeans", "Air Max 90", "Classic T-Shirt")
-- AND a price for that specific item
+- A specific product name with product details (e.g., "501 Jeans", "Air Max 90", "Classic T-Shirt", "Red Tab Overalls")
+- AND a price for that specific item in the same product block
 
 If you see "Levi's - $59.99" but no product name, DO NOT extract it as an item.
 If you see "Order from Levi's" but no line items, DO NOT extract items.
+If you see "Your order includes 3 items" but no itemized list, DO NOT extract items.
 
 Look for STRUCTURED PRODUCT BLOCKS with sections like:
 - "Items ordered:" or "Order details:" or "Your order includes:" or "Products:"
@@ -202,7 +237,16 @@ PRIORITIZE extracting from structured blocks that have:
 - Avoid extracting if you only see brand name without product details
 
 Extract as much detail as possible from clothing item descriptions.
-Use null for missing fields.`;
+Use null for missing fields.
+
+FINAL CHECK BEFORE RETURNING:
+1. Review each item in the items array
+2. For each item, verify you saw BOTH the name and price in the email
+3. If you cannot verify both were present in the email, REMOVE that item
+4. If the items array would be empty after removing unverifiable items, return {"items": [], ...}
+5. It is ALWAYS better to return NO items than to return GUESSED or MADE-UP items
+
+Remember: When in doubt, return empty items array. Only extract what you can clearly see.`;
 
   try {
     // Use Claude API for receipt parsing (fast and accurate for structured data extraction)
@@ -224,7 +268,7 @@ Use null for missing fields.`;
         body: JSON.stringify({
           model: "claude-3-haiku-20240307",
           max_tokens: 2048,
-          temperature: 0, // Set to 0 for maximum determinism, reduce hallucinations
+          temperature: 0, // Set to 0 for maximum determinism, reduce hallucinations - DO NOT INCREASE
           messages: [
             {
               role: "user",
@@ -382,11 +426,43 @@ Use null for missing fields.`;
         }
 
         // VALIDATION: If name is just brand + generic word like "item" or "product", reject
-        const genericWords = ['item', 'product', 'clothing', 'apparel', 'merchandise'];
+        const genericWords = ['item', 'product', 'clothing', 'apparel', 'merchandise', 'goods', 'piece', 'article'];
         const nameWords = itemName.split(/\s+/);
         if (nameWords.length <= 2 && genericWords.some(word => nameWords.includes(word))) {
           console.log(`❌ Blocked item - name is too generic (just brand + generic word): "${item.name}"`);
           return false;
+        }
+
+        // VALIDATION: Reject items with suspiciously generic or placeholder-like names
+        const placeholderPatterns = [
+          /^(item|product|product name|item name|description|name)[:\s]*$/i,
+          /^(example|sample|placeholder|test|n\/a|na|tbd)/i,
+          /^(order|purchase|item)\s*#?\d*$/i,
+        ];
+        
+        if (placeholderPatterns.some(pattern => pattern.test(item.name || ''))) {
+          console.log(`❌ Blocked item - name looks like placeholder or generic: "${item.name}"`);
+          return false;
+        }
+
+        // VALIDATION: Item name should contain product descriptors (not just brand)
+        // Must have at least one word that describes the product type (jeans, shirt, shoes, etc.)
+        const productDescriptors = [
+          'jean', 'pant', 'shirt', 'tee', 't-shirt', 'top', 'dress', 'jacket', 'coat',
+          'sweater', 'hoodie', 'sweatshirt', 'shorts', 'skirt', 'overall', 'jumpsuit',
+          'shoe', 'sneaker', 'boot', 'sandal', 'heel', 'flat', 'loafer', 'slipper',
+          'hat', 'cap', 'beanie', 'scarf', 'belt', 'glove', 'tie', 'sock', 'underwear'
+        ];
+        
+        const hasProductDescriptor = productDescriptors.some(desc => 
+          itemName.includes(desc)
+        );
+        
+        // If name is long enough but has no product descriptor, it might be a hallucination
+        // Unless it's a known product name pattern
+        if (itemName.length > 10 && !hasProductDescriptor && !itemName.includes("'")) {
+          console.log(`⚠️  Warning - item name has no clear product descriptor: "${item.name}"`);
+          // Don't reject, but log a warning - some product names might be unusual
         }
 
         // WHITELIST: Type must match an allowed clothing type

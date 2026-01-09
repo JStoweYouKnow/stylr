@@ -307,6 +307,11 @@ export async function getEmailContent(userId: string, messageId: string) {
     message.data.payload?.headers?.find((h) => h.name?.toLowerCase() === "subject")
       ?.value || "";
 
+  // Extract email sender (From field)
+  const from =
+    message.data.payload?.headers?.find((h) => h.name?.toLowerCase() === "from")
+      ?.value || "";
+
   // Extract email body
   let body = "";
   if (message.data.payload?.body?.data) {
@@ -329,6 +334,7 @@ export async function getEmailContent(userId: string, messageId: string) {
   return {
     id: messageId,
     subject,
+    from,
     body,
     labels: labelNames, // Now using label names instead of IDs
   };
@@ -338,12 +344,39 @@ export async function getEmailContent(userId: string, messageId: string) {
  * Pre-filter emails to skip those that clearly don't contain order details
  * This prevents sending shipping updates, marketing emails, etc. to the AI
  */
-export function shouldProcessEmail(subject: string, body: string, labels: string[] = []): {
+export function shouldProcessEmail(subject: string, body: string, labels: string[] = [], from?: string): {
   shouldProcess: boolean;
   reason?: string;
 } {
   const subjectLower = subject.toLowerCase();
   const bodyLower = body.substring(0, 1000).toLowerCase(); // Check first 1000 chars for speed
+  const fromLower = (from || "").toLowerCase();
+
+  // EXCLUDE: Known non-clothing brands/companies (they never sell clothing)
+  const nonClothingBrands = [
+    'apple', 'anthropic', 'anthropic pbc', 'openai', 'google', 'microsoft', 
+    'amazon web services', 'aws', 'netflix', 'spotify', 'adobe', 'salesforce',
+    'github', 'gitlab', 'replicate', 'vercel', 'stripe', 'paypal', 'square',
+    'uber', 'lyft', 'doordash', 'ubereats', 'grubhub', 'instacart',
+    'best buy', 'gamestop', 'ebay', 'facebook', 'meta', 'twitter', 'x.com',
+    'linkedin', 'snapchat', 'tiktok', 'youtube', 'twitch', 'discord',
+    'slack', 'zoom', 'dropbox', 'box', 'onedrive', 'icloud',
+    'intel', 'amd', 'nvidia', 'samsung', 'sony', 'lg', 'panasonic',
+    'home depot', 'lowes', 'ikea', 'wayfair', 'overstock', 'bed bath beyond'
+  ];
+
+  // Check if email is from a known non-clothing brand
+  const isFromNonClothingBrand = nonClothingBrands.some(brand => {
+    const brandLower = brand.toLowerCase();
+    return fromLower.includes(brandLower) || 
+           subjectLower.includes(brandLower) ||
+           bodyLower.includes(`from ${brandLower}`) ||
+           bodyLower.includes(`by ${brandLower}`);
+  });
+
+  if (isFromNonClothingBrand) {
+    return { shouldProcess: false, reason: `Email from non-clothing brand: ${from || 'unknown sender'}` };
+  }
 
   // EXCLUDE: Shipping/tracking emails (no order details, just shipping status)
   const shippingKeywords = [

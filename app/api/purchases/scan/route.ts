@@ -49,12 +49,15 @@ export async function POST(request: NextRequest) {
         const email = await getEmailContent(userId, message.id);
 
         console.log(`Processing email: "${email.subject.substring(0, 100)}"`);
+        if (email.from) {
+          console.log(`  From: ${email.from}`);
+        }
         if (email.labels && email.labels.length > 0) {
           console.log(`  Labels: ${email.labels.join(", ")}`);
         }
 
         // Pre-filter: Skip emails that clearly don't contain order details
-        const filterResult = shouldProcessEmail(email.subject, email.body, email.labels || []);
+        const filterResult = shouldProcessEmail(email.subject, email.body, email.labels || [], email.from);
         if (!filterResult.shouldProcess) {
           console.log(`  ⏭️  Skipping: ${filterResult.reason}`);
           skippedCount++;
