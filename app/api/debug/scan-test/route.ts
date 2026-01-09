@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserId } from "@/lib/auth-helpers";
-import { searchGmailForPurchases } from "@/lib/gmail-integration";
+import { searchPurchaseEmails } from "@/lib/gmail-integration";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     console.log(`=== DEBUG SCAN TEST for user ${userId} ===`);
 
     // Search Gmail for purchase emails
-    const messages = await searchGmailForPurchases(userId, 30);
+    const messages = await searchPurchaseEmails(userId, 30);
 
     console.log(`Found ${messages.length} potential purchase emails`);
 
