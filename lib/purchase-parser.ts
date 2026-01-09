@@ -148,8 +148,47 @@ Use null for missing fields.`;
       });
 
       // Validate and clean up the parsed data
+      // CODE-LEVEL FILTER: Block non-clothing items that AI might have extracted
+      const blockedTypes = [
+        'home goods', 'home', 'furniture', 'kitchen', 'bath', 'bathroom',
+        'food', 'beverage', 'drink', 'restaurant', 'meal', 'grocery',
+        'electronics', 'tech', 'phone', 'computer', 'gadget',
+        'beauty', 'skincare', 'makeup', 'cosmetics', 'personal care',
+        'book', 'toy', 'game', 'gift card', 'card'
+      ];
+
+      const blockedKeywords = [
+        'caddy', 'organizer', 'storage', 'container', 'basket',
+        'burger', 'pizza', 'sandwich', 'fries', 'drink', 'coffee', 'tea',
+        'shampoo', 'conditioner', 'lotion', 'soap', 'cream',
+        'charger', 'cable', 'case', 'cover', 'screen protector'
+      ];
+
+      const isClothingItem = (item: ParsedItem): boolean => {
+        const itemName = item.name?.toLowerCase() || '';
+        const itemType = item.type?.toLowerCase() || '';
+
+        // Check if type matches blocked types
+        if (blockedTypes.some(blocked => itemType.includes(blocked))) {
+          console.log(`❌ Blocked non-clothing item by type: ${item.name} (type: ${item.type})`);
+          return false;
+        }
+
+        // Check if name contains blocked keywords
+        if (blockedKeywords.some(keyword => itemName.includes(keyword))) {
+          console.log(`❌ Blocked non-clothing item by keyword: ${item.name}`);
+          return false;
+        }
+
+        return true;
+      };
+
       const result = {
-        items: parsed.items?.filter(item => item.name && item.name.length > 0) || [],
+        items: parsed.items?.filter(item =>
+          item.name &&
+          item.name.length > 0 &&
+          isClothingItem(item)
+        ) || [],
         orderNumber: parsed.orderNumber || undefined,
         purchaseDate: parsed.purchaseDate || undefined,
         store: parsed.store || undefined,
