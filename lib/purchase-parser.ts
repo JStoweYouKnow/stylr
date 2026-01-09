@@ -57,7 +57,7 @@ Return a JSON object with this exact structure:
 {
   "items": [
     {
-      "name": "ACTUAL item name from the email",
+      "name": "ACTUAL specific product name from the email (e.g., '501 Original Fit Jeans', 'Air Max 90', 'Classic Crew T-Shirt')",
       "quantity": 1,
       "price": 0.00,
       "type": "shirt/pants/overalls/dress/shoes/jacket/sweater/etc",
@@ -70,6 +70,13 @@ Return a JSON object with this exact structure:
   "store": "actual store name or null",
   "total": 0.00
 }
+
+ITEM NAME REQUIREMENTS:
+- Must be a SPECIFIC PRODUCT NAME, not just a brand
+- Examples of VALID names: "Men's 501 Original Fit Jeans", "Air Max 90 Sneakers", "Classic Crew Neck T-Shirt"
+- Examples of INVALID names: "Levi's", "Nike", "Gap" (these are just brands, not products)
+- The name should describe WHAT the item is (jeans, t-shirt, sneakers) not just WHO made it
+- If you only see a brand name without a product description, DO NOT create an item
 
 CRITICAL: THIS IS A CLOTHING WARDROBE APP. ONLY EXTRACT WEARABLE CLOTHING FROM CONFIRMED ORDERS.
 
@@ -103,12 +110,96 @@ If this email contains ONLY non-clothing items, return {"items": [], ...other fi
 If mixed items, extract ONLY the wearable clothing items.
 
 CRITICAL EXTRACTION RULES:
-1. Read the email body carefully and extract the EXACT product names as written in the email
-2. Extract the EXACT prices shown in the email (not examples, not placeholders)
-3. If a price is shown as $59.99, use 59.99 (not 49.99 or any other number)
-4. If an item name is "Men's Red Tab 501 Original Fit Jeans", use that EXACT name (not "Navy Blazer")
-5. Look for order details, line items, product descriptions in the email body
-6. Use null for fields you cannot find - DO NOT make up data or use placeholder values
+1. Look for STRUCTURED PRODUCT BLOCKS in the email - these typically contain:
+   - Product Name / Item Name / Description
+   - Color
+   - Size
+   - Style / SKU / Product Code
+   - Quantity (Qty)
+   - Price / Unit Price
+   - Total (for that item)
+
+2. Common patterns to look for:
+   - "Product Name:" or "Item:" or "Description:" followed by the product name
+   - "Color:" followed by color name
+   - "Size:" followed by size (S, M, L, XL, etc. or numeric sizes)
+   - "Style:" or "SKU:" or "Product Code:" followed by style number
+   - "Qty:" or "Quantity:" followed by number
+   - "Price:" or "$" followed by price amount
+   - Tables or structured lists with product information
+   - HTML tables with product rows
+   - Line items in order summaries
+
+3. Extract the EXACT product names as written in the email
+4. Extract the EXACT prices shown in the email (not examples, not placeholders)
+5. If a price is shown as $59.99, use 59.99 (not 49.99 or any other number)
+6. If an item name is "Red Tab™ Men's Overalls", use that EXACT name (not "Levi's" or generic name)
+7. Look for order details, line items, product descriptions in structured blocks
+8. Use null for fields you cannot find - DO NOT make up data or use placeholder values
+
+EXAMPLE OF WHAT TO LOOK FOR:
+If you see a structured product block like:
+  Product Name: Red Tab™ Men's Overalls
+  Color: Crackin Bracken
+  Size: M
+  Style: 7910700320M
+  Qty: 1
+  Price: $49.75
+
+Extract it as:
+  {
+    "name": "Red Tab™ Men's Overalls",
+    "quantity": 1,
+    "price": 49.75,
+    "type": "overalls",
+    "color": "Crackin Bracken",
+    "brand": "Levi's"
+  }
+
+Look for these structured patterns in the email:
+- Product blocks with labeled fields (Product Name:, Color:, Size:, etc.)
+- HTML tables with product rows
+- Receipt-style line items
+- Order detail sections with product information
+- Itemized lists with multiple fields per item
+
+Each product block should have at minimum:
+- A product name/description (not just brand)
+- A price
+- Optionally: color, size, style, quantity
+
+MANDATORY: Each item MUST have a specific product name, not just a brand.
+- ❌ WRONG: {"name": "Levi's", "brand": "Levi's"} - This is just a brand, not an item
+- ❌ WRONG: {"name": "Nike", "brand": "Nike"} - This is just a brand, not an item
+- ✅ CORRECT: {"name": "Men's 501 Original Fit Jeans", "brand": "Levi's"} - This has a specific product
+- ✅ CORRECT: {"name": "Air Max 90 Sneakers", "brand": "Nike"} - This has a specific product
+
+If the email only mentions a brand name without specific product names, DO NOT create items.
+Only extract items where you can find BOTH:
+- A specific product name (e.g., "501 Jeans", "Air Max 90", "Classic T-Shirt")
+- AND a price for that specific item
+
+If you see "Levi's - $59.99" but no product name, DO NOT extract it as an item.
+If you see "Order from Levi's" but no line items, DO NOT extract items.
+
+Look for STRUCTURED PRODUCT BLOCKS with sections like:
+- "Items ordered:" or "Order details:" or "Your order includes:" or "Products:"
+- Product information blocks with fields like:
+  * Product Name / Item Name / Description
+  * Color
+  * Size
+  * Style / SKU / Product Code
+  * Quantity (Qty)
+  * Price
+- HTML tables with product rows
+- Line items with product names, sizes, colors, and prices
+- Itemized lists with structured data (not just brand names)
+- Receipt-style layouts with product details
+
+PRIORITIZE extracting from structured blocks that have:
+- Product name + Color + Size + Price (most complete)
+- Product name + Price (minimum required)
+- Avoid extracting if you only see brand name without product details
 
 Extract as much detail as possible from clothing item descriptions.
 Use null for missing fields.`;
@@ -235,9 +326,68 @@ Use null for missing fields.`;
         'gift card', 'card', 'voucher', 'certificate'
       ];
 
+      // Check if item name is just a brand name (not a specific product)
+      const isJustBrandName = (itemName: string): boolean => {
+        const nameLower = itemName.toLowerCase().trim();
+        
+        // Common brand names that shouldn't be item names by themselves
+        const commonBrands = [
+          'levi\'s', 'levis', 'nike', 'adidas', 'puma', 'reebok', 'converse',
+          'vans', 'under armour', 'lululemon', 'patagonia', 'the north face',
+          'gap', 'old navy', 'banana republic', 'j.crew', 'jcrew', 'madewell',
+          'zara', 'h&m', 'hm', 'uniqlo', 'gu', 'nordstrom', 'macy\'s', 'macys',
+          'target', 'walmart', 'amazon', 'asos', 'boohoo', 'shein', 'fashion nova'
+        ];
+        
+        // If the name is just a brand name (and nothing else), it's invalid
+        return commonBrands.some(brand => {
+          // Exact match or name is just the brand
+          if (nameLower === brand || nameLower === `${brand} brand`) {
+            return true;
+          }
+          // Check if name starts with brand and has no additional descriptive words
+          if (nameLower.startsWith(brand)) {
+            const afterBrand = nameLower.substring(brand.length).trim();
+            // If only whitespace, numbers, or very short generic words, it's likely just a brand
+            if (afterBrand.length === 0 || /^[\s\-_]*$/.test(afterBrand) || afterBrand.length < 3) {
+              return true;
+            }
+          }
+          return false;
+        });
+      };
+
       const isClothingItem = (item: ParsedItem): boolean => {
         const itemName = item.name?.toLowerCase() || '';
         const itemType = item.type?.toLowerCase() || '';
+
+        // VALIDATION: Item name must be a specific product, not just a brand
+        if (isJustBrandName(item.name || '')) {
+          console.log(`❌ Blocked item - name is just a brand, not a specific product: "${item.name}"`);
+          return false;
+        }
+
+        // VALIDATION: Item name must have some descriptive content (not just brand)
+        // If name is very short and matches brand exactly, reject it
+        if (item.name && item.name.length < 10 && item.brand && 
+            item.name.toLowerCase().trim() === item.brand.toLowerCase().trim()) {
+          console.log(`❌ Blocked item - name is identical to brand (no product details): "${item.name}"`);
+          return false;
+        }
+
+        // VALIDATION: Item name must be descriptive enough (at least 5 chars, or contains product descriptors)
+        if (!item.name || item.name.trim().length < 5) {
+          console.log(`❌ Blocked item - name too short or empty: "${item.name}"`);
+          return false;
+        }
+
+        // VALIDATION: If name is just brand + generic word like "item" or "product", reject
+        const genericWords = ['item', 'product', 'clothing', 'apparel', 'merchandise'];
+        const nameWords = itemName.split(/\s+/);
+        if (nameWords.length <= 2 && genericWords.some(word => nameWords.includes(word))) {
+          console.log(`❌ Blocked item - name is too generic (just brand + generic word): "${item.name}"`);
+          return false;
+        }
 
         // WHITELIST: Type must match an allowed clothing type
         const hasValidType = allowedClothingTypes.some(validType =>
@@ -259,7 +409,7 @@ Use null for missing fields.`;
           return false;
         }
 
-        console.log(`✅ Allowed clothing item: ${item.name} (type: ${item.type})`);
+        console.log(`✅ Allowed clothing item: ${item.name} (type: ${item.type}, brand: ${item.brand || 'none'})`);
         return true;
       };
 
