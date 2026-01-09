@@ -38,7 +38,7 @@ EMAIL METADATA:
 - Subject: ${emailSubject}
 
 EMAIL BODY:
-${emailBody.substring(0, 8000)} // Increased limit for better context
+${emailBody.substring(0, 12000)} // Increased limit to capture full order details
 
 REMEMBER: 
 - This is a UNIQUE email from "${emailFrom || 'unknown sender'}" about "${emailSubject}"
@@ -671,9 +671,11 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
           }
         }
         
-        // Require at least 60% of keywords to match, but minimum 1 keyword for very short names
-        const requiredMatches = itemKeywords.length >= 4 ? Math.ceil(itemKeywords.length * 0.6) : 
-                                itemKeywords.length === 3 ? 2 : 
+        // More lenient matching: require at least 50% of keywords (reduced from 60%)
+        // This accounts for product names that might be abbreviated or formatted differently in emails
+        const requiredMatches = itemKeywords.length >= 5 ? Math.ceil(itemKeywords.length * 0.5) : 
+                                itemKeywords.length === 4 ? 2 : 
+                                itemKeywords.length === 3 ? 1 : 
                                 itemKeywords.length === 2 ? 1 : 
                                 itemKeywords.length === 1 ? 1 : 0;
         
@@ -683,6 +685,7 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
         
         // Also check if price appears near item mentions (if price is provided)
         let priceMatches = true;
+        let priceMatchDetails = '';
         if (item.price && item.price > 0) {
           const priceStr = item.price.toString();
           const pricePattern = new RegExp(`${priceStr.replace(/\./g, '\\.')}|\\$${priceStr}`);
@@ -695,6 +698,11 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
             );
             priceMatches = pricePattern.test(surroundingText) || 
                           /\$\d+/.test(surroundingText); // Accept any price nearby
+            priceMatchDetails = priceMatches ? 'price verified nearby' : 'price not found nearby';
+          } else {
+            // If item name not found, check if price appears anywhere in email
+            priceMatches = pricePattern.test(emailText);
+            priceMatchDetails = priceMatches ? 'price found in email' : 'price not found';
           }
         }
         
@@ -703,17 +711,44 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
         const fullNameMatch = emailText.includes(itemNameLower) || 
                              itemNameLower.split(/\s+/).slice(0, 3).filter(word => word.length > 2).every(word => emailText.includes(word));
         
+        // FALLBACK: If brand + type + price match, accept even if name doesn't exactly match
+        // This helps with cases where product names are formatted differently
+        let brandTypePriceMatch = false;
+        if (item.brand && item.type && item.price) {
+          const brandLower = item.brand.toLowerCase();
+          const typeLower = item.type.toLowerCase();
+          const brandInEmail = emailText.includes(brandLower);
+          const typeInEmail = emailText.includes(typeLower);
+          const priceInEmail = item.price > 0 && emailText.includes(item.price.toString());
+          
+          if (brandInEmail && typeInEmail && priceInEmail) {
+            brandTypePriceMatch = true;
+            console.log(`   Fallback match: brand "${item.brand}", type "${item.type}", price ${item.price} all found in email`);
+          }
+        }
+        
         const isValid = (matches >= requiredMatches && (itemKeywords.length > 0 || itemNameLower.length > 5)) ||
-                       (isLikelySpecificProduct && fullNameMatch && matches >= Math.max(1, requiredMatches - 1));
+                       (isLikelySpecificProduct && fullNameMatch && matches >= Math.max(1, requiredMatches - 1)) ||
+                       brandTypePriceMatch;
         
         if (!isValid) {
           console.log(`❌ REJECTED - Item name "${item.name}" not found in email body`);
           console.log(`   Keywords searched: ${itemKeywords.join(', ')}`);
           console.log(`   Matches found: ${matches}, required: ${requiredMatches}`);
+          console.log(`   Full name match: ${fullNameMatch}`);
+          if (item.brand && item.type && item.price) {
+            console.log(`   Brand/Type/Price fallback: ${brandTypePriceMatch ? 'matched' : 'not matched'}`);
+          }
+          if (item.price) {
+            console.log(`   Price verification: ${priceMatchDetails}`);
+          }
         } else if (!priceMatches && item.price) {
-          console.log(`⚠️  WARNING - Item "${item.name}" found but price ${item.price} not verified near item mention`);
+          console.log(`⚠️  WARNING - Item "${item.name}" found but ${priceMatchDetails}`);
         } else {
-          console.log(`✅ VALIDATED - Item "${item.name}" verified in email (${matches} keyword matches)`);
+          const matchReason = brandTypePriceMatch ? 'brand/type/price match' : 
+                             fullNameMatch ? 'full name match' : 
+                             `${matches} keyword matches`;
+          console.log(`✅ VALIDATED - Item "${item.name}" verified in email (${matchReason})`);
         }
         
         return isValid;
