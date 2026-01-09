@@ -155,6 +155,9 @@ export async function getGmailClient(userId: string) {
 export async function searchPurchaseEmails(userId: string, daysBack: number = 30) {
   const gmail = await getGmailClient(userId);
 
+  // Clear label cache at start of each scan
+  clearLabelCache();
+
   // Calculate date for query
   const searchDate = new Date();
   searchDate.setDate(searchDate.getDate() - daysBack);
@@ -172,14 +175,18 @@ export async function searchPurchaseEmails(userId: string, daysBack: number = 30
   ];
 
   // Build query prioritizing labeled emails first
-  // Priority 1: Emails with shopping labels AND order confirmation subject
-  const labeledQuery = `
-    (
-      label:(${shoppingLabels.join(" OR ")}) AND
-      subject:("order confirmation" OR "order receipt" OR "order placed" OR "purchase confirmation" OR "thank you for your order" OR "your order #" OR "order number" OR "receipt")
-    )
-    after:${afterDate}
-  `.trim().replace(/\s+/g, " ");
+  // Priority 1: Emails with shopping labels (no subject restriction - trust the label)
+  // Gmail label search: Use format label:LabelName for single word, label:"Label Name" for multi-word
+  const labelQueryParts = shoppingLabels.map(label => {
+    // If label has spaces, wrap in quotes; otherwise use as-is
+    if (label.includes(" ")) {
+      return `label:"${label}"`;
+    } else {
+      return `label:${label}`;
+    }
+  });
+  
+  const labeledQuery = `(${labelQueryParts.join(" OR ")}) after:${afterDate}`.trim().replace(/\s+/g, " ");
 
   // Priority 2: Emails with order confirmation subjects (even without labels)
   const subjectQuery = `
@@ -194,6 +201,8 @@ export async function searchPurchaseEmails(userId: string, daysBack: number = 30
 
   // Search for labeled emails first (higher priority)
   console.log('Gmail search query (labeled):', labeledQuery);
+  console.log('Searching for labels:', shoppingLabels.join(", "));
+  
   const labeledResponse = await gmail.users.messages.list({
     userId: "me",
     q: labeledQuery,
@@ -202,6 +211,7 @@ export async function searchPurchaseEmails(userId: string, daysBack: number = 30
 
   const labeledMessages = labeledResponse.data.messages || [];
   const labeledIds = new Set(labeledMessages.map((m) => m.id));
+  console.log(`Found ${labeledMessages.length} emails with shopping labels`);
 
   // Search for subject-based emails (lower priority, exclude already found)
   console.log('Gmail search query (subject):', subjectQuery);
@@ -217,13 +227,71 @@ export async function searchPurchaseEmails(userId: string, daysBack: number = 30
   );
 
   const allMessages = [...labeledMessages, ...subjectMessages];
-  console.log(`Found ${allMessages.length} potential purchase emails (${labeledMessages.length} labeled, ${subjectMessages.length} subject-matched)`);
+  console.log(`Found ${allMessages.length} total potential purchase emails (${labeledMessages.length} labeled, ${subjectMessages.length} subject-matched)`);
+
+  // Log label details for first few labeled emails (for debugging)
+  if (labeledMessages.length > 0) {
+    console.log(`Fetching label details for ${Math.min(3, labeledMessages.length)} labeled emails...`);
+    for (let i = 0; i < Math.min(3, labeledMessages.length); i++) {
+      try {
+        const msg = await gmail.users.messages.get({
+          userId: "me",
+          id: labeledMessages[i].id!,
+          format: "metadata",
+          metadataHeaders: ["Subject"],
+        });
+        const labels = msg.data.labelIds || [];
+        const subject = msg.data.payload?.headers?.find(h => h.name?.toLowerCase() === "subject")?.value || "";
+        console.log(`  Email ${i + 1}: "${subject.substring(0, 50)}..." - Labels: [${labels.join(", ")}]`);
+      } catch (err) {
+        console.error(`  Error fetching email ${i + 1}:`, err);
+      }
+    }
+  }
 
   return allMessages;
 }
 
+// Cache for label ID to name mapping (scoped per request)
+let labelCache: Map<string, string> | null = null;
+
 /**
- * Get full email content including labels
+ * Get label names from label IDs (with caching)
+ */
+async function getLabelNames(gmail: any, labelIds: string[]): Promise<string[]> {
+  try {
+    // Fetch labels list once and cache it
+    if (!labelCache) {
+      const labelsResponse = await gmail.users.labels.list({ userId: "me" });
+      const allLabels = labelsResponse.data.labels || [];
+      
+      // Create a map of label ID to name
+      labelCache = new Map<string, string>();
+      allLabels.forEach((label: any) => {
+        if (label.id && label.name) {
+          labelCache!.set(label.id, label.name);
+        }
+      });
+    }
+
+    // Map label IDs to names
+    return labelIds.map(id => labelCache!.get(id) || id).filter(Boolean) as string[];
+  } catch (error) {
+    console.error("Error fetching label names:", error);
+    // Fallback: return label IDs as-is if we can't fetch names
+    return labelIds;
+  }
+}
+
+/**
+ * Clear label cache (call at start of each scan to get fresh data)
+ */
+function clearLabelCache() {
+  labelCache = null;
+}
+
+/**
+ * Get full email content including labels (with label names, not just IDs)
  */
 export async function getEmailContent(userId: string, messageId: string) {
   const gmail = await getGmailClient(userId);
@@ -254,14 +322,15 @@ export async function getEmailContent(userId: string, messageId: string) {
     }
   }
 
-  // Extract labels
-  const labels = message.data.labelIds || [];
+  // Extract label IDs and convert to label names
+  const labelIds = message.data.labelIds || [];
+  const labelNames = await getLabelNames(gmail, labelIds);
 
   return {
     id: messageId,
     subject,
     body,
-    labels,
+    labels: labelNames, // Now using label names instead of IDs
   };
 }
 
@@ -349,14 +418,20 @@ export function shouldProcessEmail(subject: string, body: string, labels: string
     }
   }
 
-  // INCLUDE: Emails with shopping labels (likely important)
-  const shoppingLabels = ["shopping", "orders", "receipts", "purchases", "amazon"];
-  const hasShoppingLabel = labels.some(label => 
-    shoppingLabels.some(shoppingLabel => label.toLowerCase().includes(shoppingLabel))
-  );
+  // INCLUDE: Emails with shopping labels (highest priority - trust user's labeling)
+  // Gmail labels are case-sensitive, so check both exact match and case-insensitive
+  const shoppingLabels = ["shopping", "orders", "order confirmations", "receipts", "purchases", "amazon", "e-commerce"];
+  const hasShoppingLabel = labels.some(label => {
+    const labelLower = label.toLowerCase();
+    return shoppingLabels.some(shoppingLabel => 
+      labelLower === shoppingLabel.toLowerCase() || 
+      labelLower.includes(shoppingLabel.toLowerCase()) ||
+      shoppingLabel.toLowerCase().includes(labelLower)
+    );
+  });
   
   if (hasShoppingLabel) {
-    return { shouldProcess: true, reason: "Email has shopping label" };
+    return { shouldProcess: true, reason: `Email has shopping label: ${labels.find(l => shoppingLabels.some(sl => l.toLowerCase().includes(sl.toLowerCase())))}` };
   }
 
   // INCLUDE: Order confirmation keywords in subject

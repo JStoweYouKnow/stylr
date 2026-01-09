@@ -66,8 +66,15 @@ export async function POST(request: NextRequest) {
         // Parse receipt with AI
         const parsed = await parseReceiptWithAI(email.subject, email.body);
 
+        console.log('AI parse result:', {
+          itemsCount: parsed.items?.length || 0,
+          store: parsed.store,
+          orderNumber: parsed.orderNumber,
+          items: parsed.items?.map(i => ({ name: i.name, type: i.type })) || []
+        });
+
         if (parsed.items.length === 0) {
-          console.log('Skipping - no clothing items found');
+          console.log('⚠️  Skipping - no clothing items found in parsed result');
           continue; // No clothing items found
         }
 
