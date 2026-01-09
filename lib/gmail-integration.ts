@@ -459,15 +459,12 @@ export async function getEmailContent(userId: string, messageId: string) {
       ?.value || "";
 
   // Extract email body (recursively handle nested MIME parts)
-  let htmlBody = "";
-  let plainBody = "";
+  let body = "";
 
   // Recursive function to extract text from all MIME parts
   function extractTextFromPart(part: any) {
-    if (part.mimeType === "text/html" && part.body?.data) {
-      htmlBody += Buffer.from(part.body.data, "base64").toString("utf-8");
-    } else if (part.mimeType === "text/plain" && part.body?.data) {
-      plainBody += Buffer.from(part.body.data, "base64").toString("utf-8");
+    if ((part.mimeType === "text/html" || part.mimeType === "text/plain") && part.body?.data) {
+      body += Buffer.from(part.body.data, "base64").toString("utf-8");
     }
 
     // Recursively process nested parts (for multipart/alternative, multipart/mixed, etc.)
@@ -480,12 +477,7 @@ export async function getEmailContent(userId: string, messageId: string) {
 
   // Handle single-part email (body data directly in payload)
   if (message.data.payload?.body?.data) {
-    const mimeType = message.data.payload.mimeType || "";
-    if (mimeType === "text/html") {
-      htmlBody = Buffer.from(message.data.payload.body.data, "base64").toString("utf-8");
-    } else {
-      plainBody = Buffer.from(message.data.payload.body.data, "base64").toString("utf-8");
-    }
+    body = Buffer.from(message.data.payload.body.data, "base64").toString("utf-8");
   }
 
   // Handle multi-part email (recursively extract from all parts)
@@ -494,9 +486,6 @@ export async function getEmailContent(userId: string, messageId: string) {
       extractTextFromPart(part);
     }
   }
-
-  // Prefer HTML body (has more detail) but fallback to plain text
-  const body = htmlBody || plainBody;
 
   // Extract label IDs and convert to label names
   const labelIds = message.data.labelIds || [];
