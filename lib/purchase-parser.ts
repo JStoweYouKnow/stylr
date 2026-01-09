@@ -38,7 +38,7 @@ EMAIL METADATA:
 - Subject: ${emailSubject}
 
 EMAIL BODY:
-${emailBody.substring(0, 4000)} // Limit body length
+${emailBody.substring(0, 8000)} // Increased limit for better context
 
 REMEMBER: 
 - This is a UNIQUE email from "${emailFrom || 'unknown sender'}" about "${emailSubject}"
@@ -320,7 +320,8 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
         body: JSON.stringify({
           model: "claude-3-haiku-20240307",
           max_tokens: 2048,
-          temperature: 0, // Set to 0 for maximum determinism, reduce hallucinations - DO NOT INCREASE
+          temperature: 0.1, // Slight temperature to allow variation while staying deterministic
+          system: "You are a strict data extraction tool. Extract ONLY what you see in the email provided. DO NOT reuse examples, templates, or data from previous emails. Each email is completely independent. If you cannot find specific items with names and prices in THIS email, return an empty items array.",
           messages: [
             {
               role: "user",
@@ -644,8 +645,87 @@ Remember: When in doubt, return empty items array. Only extract what you can cle
         validatedStore = undefined;
       }
 
+      // CRITICAL VALIDATION: Verify parsed items actually exist in the email body
+      // This catches hallucinations and template reuse
+      const validatedItems = filteredItems.filter(item => {
+        if (!item.name) return false;
+        
+        const emailText = `${emailSubject} ${emailBody}`.toLowerCase();
+        const itemNameLower = item.name.toLowerCase();
+        
+        // Check if significant parts of the item name appear in the email
+        // Extract key words from item name (remove common stop words)
+        const stopWords = ['mens', 'womens', 'mens', 'womens', 'the', 'and', 'for', 'with'];
+        const itemKeywords = itemNameLower
+          .split(/\s+/)
+          .filter(word => word.length > 2) // Include 3+ char words (allows "red", "tab", etc.)
+          .filter(word => !stopWords.includes(word))
+          .filter(word => word.length > 3 || itemNameLower.split(/\s+/).length <= 4); // Keep short words only if item name is short
+        
+        // For item names with multiple words, at least 2 keywords should match
+        // For shorter names, the whole name or significant portion should match
+        let matches = 0;
+        for (const keyword of itemKeywords) {
+          if (emailText.includes(keyword)) {
+            matches++;
+          }
+        }
+        
+        // Require at least 60% of keywords to match, but minimum 1 keyword for very short names
+        const requiredMatches = itemKeywords.length >= 4 ? Math.ceil(itemKeywords.length * 0.6) : 
+                                itemKeywords.length === 3 ? 2 : 
+                                itemKeywords.length === 2 ? 1 : 
+                                itemKeywords.length === 1 ? 1 : 0;
+        
+        // Special case: if item name contains trademark symbol or specific brand terms, be more lenient
+        const hasTrademark = item.name.includes('™') || item.name.includes('®') || item.name.includes('©');
+        const isLikelySpecificProduct = hasTrademark || itemKeywords.length >= 4;
+        
+        // Also check if price appears near item mentions (if price is provided)
+        let priceMatches = true;
+        if (item.price && item.price > 0) {
+          const priceStr = item.price.toString();
+          const pricePattern = new RegExp(`${priceStr.replace(/\./g, '\\.')}|\\$${priceStr}`);
+          // Look for price within 200 chars of item name mention
+          const itemNameMatch = emailText.indexOf(itemKeywords[0] || itemNameLower);
+          if (itemNameMatch >= 0) {
+            const surroundingText = emailText.substring(
+              Math.max(0, itemNameMatch - 100), 
+              Math.min(emailText.length, itemNameMatch + 300)
+            );
+            priceMatches = pricePattern.test(surroundingText) || 
+                          /\$\d+/.test(surroundingText); // Accept any price nearby
+          }
+        }
+        
+        // Also check if the full item name (or a close variant) appears in the email
+        // This helps catch cases where all keywords match but in a different order
+        const fullNameMatch = emailText.includes(itemNameLower) || 
+                             itemNameLower.split(/\s+/).slice(0, 3).filter(word => word.length > 2).every(word => emailText.includes(word));
+        
+        const isValid = (matches >= requiredMatches && (itemKeywords.length > 0 || itemNameLower.length > 5)) ||
+                       (isLikelySpecificProduct && fullNameMatch && matches >= Math.max(1, requiredMatches - 1));
+        
+        if (!isValid) {
+          console.log(`❌ REJECTED - Item name "${item.name}" not found in email body`);
+          console.log(`   Keywords searched: ${itemKeywords.join(', ')}`);
+          console.log(`   Matches found: ${matches}, required: ${requiredMatches}`);
+        } else if (!priceMatches && item.price) {
+          console.log(`⚠️  WARNING - Item "${item.name}" found but price ${item.price} not verified near item mention`);
+        } else {
+          console.log(`✅ VALIDATED - Item "${item.name}" verified in email (${matches} keyword matches)`);
+        }
+        
+        return isValid;
+      });
+      
+      if (validatedItems.length < filteredItems.length) {
+        const rejectedCount = filteredItems.length - validatedItems.length;
+        console.log(`⚠️  Rejected ${rejectedCount} item(s) that could not be verified in email body`);
+      }
+
       const result = {
-        items: filteredItems,
+        items: validatedItems,
         orderNumber: parsed.orderNumber || undefined,
         purchaseDate: parsed.purchaseDate || undefined,
         store: validatedStore || undefined,

@@ -39,6 +39,9 @@ export async function POST(request: NextRequest) {
     let duplicateCount = 0;
     let skippedCount = 0;
     const purchases = [];
+    
+    // Track item names across emails to detect template reuse
+    const seenItemNames = new Map<string, { count: number; emails: string[] }>();
 
     // Process each email
     for (const message of messages) {
@@ -79,6 +82,17 @@ export async function POST(request: NextRequest) {
         if (parsed.items.length === 0) {
           console.log('⚠️  Skipping - no clothing items found in parsed result');
           continue; // No clothing items found
+        }
+
+        // Check for duplicate item names across emails (indicates template reuse)
+        for (const item of parsed.items) {
+          const normalizedName = item.name.toLowerCase().trim();
+          if (!seenItemNames.has(normalizedName)) {
+            seenItemNames.set(normalizedName, { count: 0, emails: [] });
+          }
+          const entry = seenItemNames.get(normalizedName)!;
+          entry.count++;
+          entry.emails.push(email.subject);
         }
 
         console.log(`Found ${parsed.items.length} clothing items from ${parsed.store || 'unknown store'}`);
@@ -128,6 +142,25 @@ export async function POST(request: NextRequest) {
       } catch (emailError) {
         console.error(`Failed to process email ${message.id}:`, emailError);
         // Continue processing other emails
+      }
+    }
+    
+    // Report on duplicate item names (possible template reuse)
+    const suspiciousItems = Array.from(seenItemNames.entries())
+      .filter(([name, data]) => data.count > 1 && data.emails.length > 1)
+      .sort((a, b) => b[1].count - a[1].count);
+    
+    if (suspiciousItems.length > 0) {
+      console.log('\n⚠️  WARNING: Found items with identical names across multiple emails:');
+      for (const [itemName, data] of suspiciousItems) {
+        console.log(`   "${itemName}" appears ${data.count} times in ${data.emails.length} different emails:`);
+        data.emails.slice(0, 3).forEach(subject => {
+          console.log(`     - ${subject.substring(0, 60)}...`);
+        });
+        if (data.emails.length > 3) {
+          console.log(`     ... and ${data.emails.length - 3} more`);
+        }
+        console.log(`   This might indicate the parser is reusing templates instead of parsing each email independently.`);
       }
     }
 
