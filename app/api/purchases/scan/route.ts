@@ -146,10 +146,13 @@ export async function POST(request: NextRequest) {
             const itemType = item.type ? normalizeClothingType(item.type) : 'clothing';
             const placeholderImage = `https://via.placeholder.com/400x500/9ca3af/ffffff?text=${encodeURIComponent(itemType || 'Item')}`;
 
+            // Use extracted image URL if available, otherwise use placeholder
+            const imageUrl = item.imageUrl || placeholderImage;
+
             const clothingItem = await prisma.clothingItem.create({
               data: {
                 userId,
-                imageUrl: placeholderImage,
+                imageUrl: imageUrl,
                 type: itemType,
                 primaryColor: item.color || null,
                 brand: item.brand || null,
@@ -173,7 +176,8 @@ export async function POST(request: NextRequest) {
             });
 
             addedToWardrobeCount++;
-            console.log(`✅ Added "${item.name}" to wardrobe (ID: ${clothingItem.id})`);
+            const imageSource = item.imageUrl ? '📸 with product image' : '🖼️  with placeholder';
+            console.log(`✅ Added "${item.name}" to wardrobe ${imageSource} (ID: ${clothingItem.id})`);
           } catch (wardrobeError) {
             console.error(`⚠️  Failed to add "${item.name}" to wardrobe:`, wardrobeError);
             // Continue - purchase is still tracked even if wardrobe addition fails

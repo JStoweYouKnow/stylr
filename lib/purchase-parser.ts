@@ -15,6 +15,7 @@ export interface ParsedItem {
   type?: string; // "shirt", "pants", "shoes", etc.
   color?: string;
   brand?: string;
+  imageUrl?: string; // Product image URL from email
 }
 
 /**
@@ -98,6 +99,39 @@ function extractOrderDetailsFromHTML(html: string, maxLength: number = 30000): s
         extractedText += [alt, title, dataName].filter(Boolean).join(' ') + '\n';
       }
     });
+
+    // 6. Extract product image URLs
+    const productImages: Array<{url: string, alt: string}> = [];
+    $('img').each((_, el) => {
+      const $img = $(el);
+      const src = $img.attr('src') || '';
+      const alt = $img.attr('alt') || '';
+
+      // Only include images that:
+      // - Have a valid URL (starts with http:// or https://)
+      // - Are likely product images (check context, alt text, or size)
+      if (src && (src.startsWith('http://') || src.startsWith('https://'))) {
+        // Check if this is likely a product image
+        const altLower = alt.toLowerCase();
+        const parent = $img.parent();
+        const parentText = parent.text().toLowerCase();
+
+        // Include if: alt text suggests product, or parent contains product/item/order text
+        if (altLower.includes('product') || altLower.includes('item') ||
+            parentText.includes('product') || parentText.includes('item') ||
+            parentText.includes('order') || alt.length > 10) {
+          productImages.push({url: src, alt: alt});
+        }
+      }
+    });
+
+    // Add product images to extracted text in a structured format
+    if (productImages.length > 0) {
+      extractedText += '\n\nPRODUCT IMAGES:\n';
+      productImages.forEach(img => {
+        extractedText += `<img src="${img.url}" alt="${img.alt}">\n`;
+      });
+    }
 
     // If we found substantial extracted content, use it
     if (extractedText.trim().length > 500) {
@@ -353,7 +387,8 @@ Return a JSON object with this exact structure:
       "price": 0.00,
       "type": "shirt/pants/overalls/dress/shoes/jacket/sweater/etc",
       "color": "color from email or null",
-      "brand": "brand from email or null"
+      "brand": "brand from email or null",
+      "imageUrl": "full URL to product image from email or null (look for <img src=...> tags near product name)"
     }
   ],
   "orderNumber": "actual order number or null",
@@ -442,6 +477,13 @@ CRITICAL EXTRACTION RULES:
 5. If a price is shown as $59.99, use 59.99 (not 49.99 or any other number)
 6. Look for order details, line items, product descriptions in structured blocks IN THIS EMAIL
 7. Use null for fields you cannot find - DO NOT make up data or use placeholder values
+8. Extract product image URLs when available:
+   - Look for <img src="..."> tags near product names or in product blocks
+   - Common patterns: "Product Image:", <img alt="[product name]" src="...">, product thumbnails
+   - Extract the FULL URL (must start with http:// or https://)
+   - If image is in the same block as the product name, include it in that item's imageUrl
+   - If no image found for a product, use null (do not make up URLs)
+   - Examples: "https://example.com/product.jpg", "https://cdn.example.com/images/item.png"
 
 CRITICAL: DO NOT REUSE EXAMPLES OR TEMPLATES
 - DO NOT copy item names from examples or previous emails
@@ -465,7 +507,8 @@ Extract the ACTUAL values from THIS EMAIL:
     "price": [ACTUAL PRICE FROM THIS EMAIL],
     "type": "[ACTUAL TYPE FROM THIS EMAIL]",
     "color": "[ACTUAL COLOR FROM THIS EMAIL or null]",
-    "brand": "[ACTUAL BRAND FROM THIS EMAIL or null]"
+    "brand": "[ACTUAL BRAND FROM THIS EMAIL or null]",
+    "imageUrl": "[ACTUAL IMAGE URL FROM THIS EMAIL or null]"
   }
 
 Look for these structured patterns in the email:
