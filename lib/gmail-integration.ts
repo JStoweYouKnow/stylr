@@ -163,21 +163,34 @@ export async function searchPurchaseEmails(userId: string, daysBack: number = 30
   // Build comprehensive search query for purchase confirmations
   // Cast a wide net and let the AI do strict filtering (AI prompt is now very strict about clothing-only)
   const query = `
-    subject:(
-      "order confirmation" OR
-      "order receipt" OR
-      "order placed" OR
-      "purchase confirmation" OR
-      "thank you for your order" OR
-      "your order" OR
-      "order number" OR
-      "shipment" OR
-      "shipping confirmation" OR
-      "has shipped" OR
-      "tracking" OR
-      "delivery" OR
-      "receipt" OR
-      "invoice"
+    (
+      subject:(
+        "order confirmation" OR
+        "order receipt" OR
+        "order placed" OR
+        "purchase confirmation" OR
+        "thank you for your order" OR
+        "your order" OR
+        order OR
+        confirmed OR
+        "order number" OR
+        "shipment" OR
+        "shipping confirmation" OR
+        "has shipped" OR
+        "tracking" OR
+        "delivery" OR
+        "receipt" OR
+        "invoice"
+      ) OR
+      from:(
+        levi OR levis OR
+        nordstrom OR
+        "banana republic" OR bananarepublic OR
+        gu OR uniqlo OR
+        gap OR oldnavy OR
+        zara OR hm OR "h&m" OR
+        madewell OR jcrew OR "j.crew"
+      )
     )
     after:${afterDate}
   `.trim().replace(/\s+/g, " ");
