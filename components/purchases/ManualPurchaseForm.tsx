@@ -346,8 +346,6 @@ export default function ManualPurchaseForm({
               ))}
             </div>
           </div>
-
-          </div>
         </form>
         </div>
 
