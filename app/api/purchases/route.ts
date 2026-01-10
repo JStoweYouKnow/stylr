@@ -135,6 +135,11 @@ export async function POST(request: NextRequest) {
           });
 
           addedToWardrobeCount++;
+          const imageSource = item.imageUrl ? '📸 with product image' : '🖼️  with placeholder';
+          console.log(`✅ Added "${item.name}" to wardrobe ${imageSource} (ID: ${clothingItem.id})`);
+          if (item.imageUrl) {
+            console.log(`   Image URL: ${item.imageUrl.substring(0, 100)}${item.imageUrl.length > 100 ? '...' : ''}`);
+          }
         } catch (wardrobeError) {
           console.error(`Failed to add "${item.name}" to wardrobe:`, wardrobeError);
           // Continue - purchase is still tracked even if wardrobe addition fails

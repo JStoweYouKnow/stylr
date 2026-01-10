@@ -153,6 +153,7 @@ export async function POST(request: NextRequest) {
               data: {
                 userId,
                 imageUrl: imageUrl,
+                productImageUrl: item.imageUrl || null,
                 type: itemType,
                 primaryColor: item.color || null,
                 brand: item.brand || null,
