@@ -133,12 +133,42 @@ export default function PurchasesPage() {
     const loadingToast = toast.loading("Deleting purchase...");
 
     try {
-      await fetch(`/api/purchases?id=${id}`, { method: "DELETE" });
+      const response = await fetch(`/api/purchases?id=${id}`, { method: "DELETE" });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Failed to delete purchase" }));
+        throw new Error(errorData.error || "Failed to delete purchase");
+      }
+
+      // Update purchases state
       setPurchases((prev) => prev.filter((p) => p.id !== id));
+
+      // Recalculate stats after deletion
+      if (stats) {
+        const deletedPurchase = purchases.find((p) => p.id === id);
+        const newPurchases = purchases.filter((p) => p.id !== id);
+
+        // Recalculate total spent
+        const newTotalSpent = deletedPurchase?.price
+          ? stats.totalSpent - deletedPurchase.price
+          : stats.totalSpent;
+
+        // Recalculate average price
+        const newAveragePrice = newPurchases.length > 0
+          ? newPurchases.reduce((sum, p) => sum + (p.price || 0), 0) / newPurchases.filter(p => p.price).length
+          : 0;
+
+        setStats({
+          ...stats,
+          totalSpent: newTotalSpent,
+          averagePrice: newAveragePrice,
+        });
+      }
+
       toast.success("Purchase deleted", { id: loadingToast });
     } catch (error) {
       console.error("Failed to delete purchase:", error);
-      toast.error("Failed to delete purchase", { id: loadingToast });
+      toast.error(error instanceof Error ? error.message : "Failed to delete purchase", { id: loadingToast });
     }
   };
 
