@@ -141,8 +141,9 @@ export default function ManualPurchaseForm({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+        {/* Header - Fixed */}
+        <div className="flex-shrink-0 border-b border-gray-200 px-6 py-4 flex items-center justify-between">
           <h2 className="text-2xl font-bold">Add Purchase Manually</h2>
           <button
             onClick={onClose}
@@ -164,7 +165,9 @@ export default function ManualPurchaseForm({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto">
+          <form onSubmit={handleSubmit} className="p-6 space-y-6" id="purchase-form">
           {/* Order Details */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -344,8 +347,13 @@ export default function ManualPurchaseForm({
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="flex gap-3 pt-4 border-t border-gray-200">
+          </div>
+        </form>
+        </div>
+
+        {/* Footer - Fixed */}
+        <div className="flex-shrink-0 border-t border-gray-200 px-6 py-4">
+          <div className="flex gap-3">
             <button
               type="button"
               onClick={onClose}
@@ -355,13 +363,14 @@ export default function ManualPurchaseForm({
             </button>
             <button
               type="submit"
+              form="purchase-form"
               disabled={isSubmitting}
               className="flex-1 px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? "Adding..." : "Add Purchase"}
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );
