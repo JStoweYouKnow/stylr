@@ -101,13 +101,14 @@ export default function MannequinZone({
         rounded-lg border-2 border-dashed transition-all duration-200 cursor-pointer
         flex items-center justify-center relative
         ${disabled ? "opacity-30 cursor-not-allowed" : ""}
-        ${isOver && canDrop ? "border-blue-500 bg-blue-50/50 scale-[1.02]" : ""}
+        ${isOver && canDrop ? "border-blue-500 bg-blue-50/70 scale-[1.02]" : ""}
         ${!isOver && canDrop ? "border-blue-300" : ""}
-        ${!canDrop && !disabled ? "border-gray-300 hover:border-gray-400 hover:bg-gray-50/30" : ""}
-        ${item ? "border-solid border-green-400 bg-green-50/20" : ""}
-        ${isOverlay && isEmpty ? "border-transparent bg-transparent hover:border-gray-300 hover:bg-gray-50/20" : ""}
-        ${isFullBody && isEmpty ? "border-purple-300 bg-purple-50/10" : ""}
-        ${willReplaceFullBody && isEmpty ? "border-orange-400 bg-orange-100/60 border-2 shadow-md" : ""}
+        ${!canDrop && !disabled ? "border-gray-300 hover:border-gray-400 hover:bg-gray-50/50" : ""}
+        ${item ? "border-solid border-green-400 bg-green-50/30" : ""}
+        ${isOverlay && isEmpty ? "border-transparent bg-transparent hover:border-gray-300 hover:bg-gray-50/30" : ""}
+        ${isFullBody && isEmpty ? "border-purple-300 bg-purple-50/20" : ""}
+        ${willReplaceFullBody && isEmpty ? "border-orange-500 bg-orange-100/80 border-2 shadow-lg" : ""}
+        ${isEmpty && !isOverlay ? "min-h-[40px]" : ""}
       `}
       data-drop-zone={zone}
     >
