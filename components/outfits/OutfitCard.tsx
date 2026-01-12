@@ -32,22 +32,63 @@ export default function OutfitCard({ outfit, type = "saved", onExport, onDelete 
   async function handleExport() {
     setIsExporting(true);
     try {
-      const dataUrl = await exportOutfitAsImage(exportId, {
-        format: "png",
-        quality: 0.95,
-        includeDetails: true,
-        watermark: true,
-      });
-      
-      const filename = `outfit-${outfit.name || outfit.id}-${Date.now()}.png`;
-      downloadImage(dataUrl, filename);
-      
-      if (onExport) {
-        onExport(dataUrl);
+      // Try server-side export first (works with external images)
+      try {
+        const response = await fetch("/api/outfits/export", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            outfitId: outfit.id,
+            type: type,
+          }),
+        });
+
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = `outfit-${outfit.name || outfit.id}-${Date.now()}.png`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+          
+          if (onExport) {
+            // Convert blob to data URL for callback
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              if (onExport && typeof reader.result === 'string') {
+                onExport(reader.result);
+              }
+            };
+            reader.readAsDataURL(blob);
+          }
+          return;
+        } else {
+          const error = await response.json();
+          throw new Error(error.error || "Server export failed");
+        }
+      } catch (serverError) {
+        console.warn("Server-side export failed, trying client-side:", serverError);
+        // Fallback to client-side export
+        const dataUrl = await exportOutfitAsImage(exportId, {
+          format: "png",
+          quality: 0.95,
+          includeDetails: true,
+          watermark: true,
+        });
+        
+        const filename = `outfit-${outfit.name || outfit.id}-${Date.now()}.png`;
+        downloadImage(dataUrl, filename);
+        
+        if (onExport) {
+          onExport(dataUrl);
+        }
       }
     } catch (error) {
       console.error("Export failed:", error);
-      alert("Failed to export outfit. Please try again.");
+      alert(`Failed to export outfit: ${error instanceof Error ? error.message : "Please try again."}`);
     } finally {
       setIsExporting(false);
     }
