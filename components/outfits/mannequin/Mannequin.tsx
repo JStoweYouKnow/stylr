@@ -39,6 +39,7 @@ export default function Mannequin({
   const hasTopOrBottom = outfit.top !== null || outfit.bottom !== null;
 
   // Zone configuration with position percentages
+  // Note: fullBody is not included as a clickable zone - it's handled via toggle
   const zones = [
     {
       id: "head" as const,
@@ -51,15 +52,15 @@ export default function Mannequin({
     {
       id: "top" as const,
       label: "Top",
-      acceptCategories: ["top"],
+      acceptCategories: ["top", "jacket"], // Unified tops: accepts both
       top: "15%",
       height: "25%",
-      disabled: false, // Allow dropping to replace full-body
+      disabled: false,
     },
     {
       id: "jacket" as const,
       label: "Jacket",
-      acceptCategories: ["jacket"],
+      acceptCategories: ["top", "jacket"], // Unified tops: accepts both
       top: "15%",
       height: "30%",
       disabled: false,
@@ -71,16 +72,7 @@ export default function Mannequin({
       acceptCategories: ["bottom"],
       top: "40%",
       height: "35%",
-      disabled: false, // Allow dropping to replace full-body
-    },
-    {
-      id: "fullBody" as const,
-      label: "Full Body",
-      acceptCategories: ["full-body"],
-      top: "15%",
-      height: "60%",
-      disabled: hasTopOrBottom, // Disable when top/bottom exist (but allow dropping to replace)
-      isFullBody: true,
+      disabled: false,
     },
     {
       id: "shoes" as const,
@@ -229,14 +221,14 @@ export default function Mannequin({
               position: "absolute",
               top: zone.top,
               height: zone.height,
-              left: zone.isFullBody ? "5%" : zone.isOverlay ? "5%" : "15%",
-              right: zone.isFullBody ? "5%" : zone.isOverlay ? "5%" : "15%",
+              left: zone.isOverlay ? "5%" : "15%",
+              right: zone.isOverlay ? "5%" : "15%",
             }}
             onDrop={(itemId) => onDropItem(zone.id, itemId)}
             onClick={() => onZoneClick(zone.id)}
             onRemove={() => onRemoveItem(zone.id)}
             isOverlay={zone.isOverlay}
-            isFullBody={zone.isFullBody}
+            isFullBody={false}
             hasFullBody={hasFullBody}
             hasTopOrBottom={hasTopOrBottom}
           />

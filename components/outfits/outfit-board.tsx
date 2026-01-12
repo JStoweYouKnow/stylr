@@ -8,13 +8,13 @@ import DraggableItem from "./draggable-item";
 import OutfitVisualizer from "@/components/OutfitVisualizer";
 import Mannequin, { OutfitState, ClothingItem } from "./mannequin/Mannequin";
 import ItemPickerModal from "./ItemPickerModal";
-import TopJacketPickerModal from "./TopJacketPickerModal";
+import TopPickerModal from "./TopPickerModal";
 
 // Zone configuration for item picker modal
 const ZONE_CONFIG: Record<keyof OutfitState, string[]> = {
   head: ["accessories"],
-  top: ["top"],
-  jacket: ["jacket"],
+  top: ["top", "jacket"], // Unified tops: accepts both top and jacket
+  jacket: ["top", "jacket"], // Unified tops: accepts both top and jacket
   bottom: ["bottom"],
   shoes: ["shoes"],
   fullBody: ["full-body"],
@@ -43,7 +43,7 @@ function OutfitBoardContent({ onSaveSuccess }: OutfitBoardProps) {
   // Item picker modal state
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerZone, setPickerZone] = useState<keyof OutfitState>("top");
-  const [topJacketPickerOpen, setTopJacketPickerOpen] = useState(false);
+  const [topPickerOpen, setTopPickerOpen] = useState(false);
 
   // Category filter for wardrobe sidebar
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
@@ -98,8 +98,11 @@ function OutfitBoardContent({ onSaveSuccess }: OutfitBoardProps) {
           itemType.includes("leggings") ||
           itemType.includes("joggers") ||
           itemType.includes("chinos");
-      } else if (zone === "top") {
-        matchesCategory =
+      } else if (zone === "top" || zone === "jacket") {
+        // Unified tops: accept both top and jacket categories
+        const isTop =
+          category === "top" ||
+          category.includes("top") ||
           itemType.includes("shirt") ||
           itemType.includes("t-shirt") ||
           itemType.includes("blouse") ||
@@ -108,14 +111,16 @@ function OutfitBoardContent({ onSaveSuccess }: OutfitBoardProps) {
           itemType.includes("cardigan") ||
           itemType.includes("tank") ||
           itemType.includes("top");
-      } else if (zone === "jacket") {
-        matchesCategory =
+        const isJacket =
+          category === "jacket" ||
+          category.includes("jacket") ||
           itemType.includes("jacket") ||
           itemType.includes("coat") ||
           itemType.includes("blazer") ||
           itemType.includes("parka") ||
           itemType.includes("windbreaker") ||
           itemType.includes("bomber");
+        matchesCategory = isTop || isJacket;
       } else if (zone === "shoes") {
         matchesCategory =
           itemType.includes("shoe") ||
@@ -160,10 +165,30 @@ function OutfitBoardContent({ onSaveSuccess }: OutfitBoardProps) {
       if (zone === "fullBody") {
         newOutfit.top = null;
         newOutfit.bottom = null;
+        newOutfit.jacket = null;
         newOutfit.fullBody = item;
       }
-      // If adding top or bottom, clear full-body
-      else if (zone === "top" || zone === "bottom") {
+      // Unified tops logic: determine if item is top or jacket and place accordingly
+      else if (zone === "top" || zone === "jacket") {
+        newOutfit.fullBody = null;
+        const isJacketItem =
+          category === "jacket" ||
+          category.includes("jacket") ||
+          itemType.includes("jacket") ||
+          itemType.includes("coat") ||
+          itemType.includes("blazer") ||
+          itemType.includes("parka") ||
+          itemType.includes("windbreaker") ||
+          itemType.includes("bomber");
+        
+        if (isJacketItem) {
+          newOutfit.jacket = item;
+        } else {
+          newOutfit.top = item;
+        }
+      }
+      // If adding bottom, clear full-body
+      else if (zone === "bottom") {
         newOutfit.fullBody = null;
         newOutfit[zone] = item;
       }
@@ -185,16 +210,19 @@ function OutfitBoardContent({ onSaveSuccess }: OutfitBoardProps) {
   }
 
   function handleZoneClick(zone: keyof OutfitState) {
-    // Special handling for top zone - show dual picker
-    if (zone === "top") {
-      setTopJacketPickerOpen(true);
+    // Unified tops: show unified picker for both top and jacket zones
+    if (zone === "top" || zone === "jacket") {
+      setTopPickerOpen(true);
+    } else if (zone === "fullBody") {
+      // Full-body is handled via toggle, not clickable on mannequin
+      return;
     } else {
       setPickerZone(zone);
       setPickerOpen(true);
     }
   }
 
-  function handleTopJacketConfirm(top: ClothingItem | null, jacket: ClothingItem | null) {
+  function handleTopConfirm(top: ClothingItem | null, jacket: ClothingItem | null) {
     saveToHistory();
     setOutfit((prev) => {
       const newOutfit = { ...prev };
@@ -208,8 +236,39 @@ function OutfitBoardContent({ onSaveSuccess }: OutfitBoardProps) {
     });
   }
 
+  function handleDressJumpsuitToggle() {
+    saveToHistory();
+    if (outfit.fullBody) {
+      // Toggle off: clear full-body
+      setOutfit((prev) => ({
+        ...prev,
+        fullBody: null,
+      }));
+    } else {
+      // Toggle on: open picker for full-body items
+      setPickerZone("fullBody");
+      setPickerOpen(true);
+    }
+  }
+
+  function handleFullBodySelect(item: ClothingItem) {
+    saveToHistory();
+    setOutfit((prev) => {
+      const newOutfit = { ...prev };
+      newOutfit.fullBody = item;
+      newOutfit.top = null;
+      newOutfit.bottom = null;
+      newOutfit.jacket = null;
+      return newOutfit;
+    });
+  }
+
   function handlePickerSelect(item: ClothingItem) {
-    handleDropItem(pickerZone, item.id);
+    if (pickerZone === "fullBody") {
+      handleFullBodySelect(item);
+    } else {
+      handleDropItem(pickerZone, item.id);
+    }
   }
 
   function undo() {
@@ -405,6 +464,26 @@ function OutfitBoardContent({ onSaveSuccess }: OutfitBoardProps) {
             </div>
           </div>
 
+          {/* Dress/Jumpsuit Toggle */}
+          <div className="mb-4">
+            <label className="flex items-center justify-between p-3 bg-white rounded-lg border cursor-pointer hover:bg-gray-50 transition-colors">
+              <span className="text-sm font-medium">Dress/Jumpsuit</span>
+              <button
+                type="button"
+                onClick={handleDressJumpsuitToggle}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  outfit.fullBody ? "bg-black" : "bg-gray-300"
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    outfit.fullBody ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </label>
+          </div>
+
           {/* Mannequin */}
           <div className="mb-4">
             <Mannequin
@@ -528,6 +607,26 @@ function OutfitBoardContent({ onSaveSuccess }: OutfitBoardProps) {
                 </div>
               </div>
 
+              {/* Dress/Jumpsuit Toggle */}
+              <div className="mb-4">
+                <label className="flex items-center justify-between p-3 bg-white rounded-lg border cursor-pointer hover:bg-gray-50 transition-colors max-w-md mx-auto">
+                  <span className="text-sm font-medium">Dress/Jumpsuit</span>
+                  <button
+                    type="button"
+                    onClick={handleDressJumpsuitToggle}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      outfit.fullBody ? "bg-black" : "bg-gray-300"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        outfit.fullBody ? "translate-x-6" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </label>
+              </div>
+
               {/* Mannequin */}
               <div className="flex justify-center mb-6">
                 <Mannequin
@@ -584,14 +683,14 @@ function OutfitBoardContent({ onSaveSuccess }: OutfitBoardProps) {
         onSelect={handlePickerSelect}
       />
 
-      {/* Top & Jacket Picker Modal */}
-      <TopJacketPickerModal
-        isOpen={topJacketPickerOpen}
-        onClose={() => setTopJacketPickerOpen(false)}
+      {/* Unified Top Picker Modal */}
+      <TopPickerModal
+        isOpen={topPickerOpen}
+        onClose={() => setTopPickerOpen(false)}
         items={wardrobeItems}
         currentTop={outfit.top}
         currentJacket={outfit.jacket}
-        onConfirm={handleTopJacketConfirm}
+        onConfirm={handleTopConfirm}
       />
     </div>
   );
