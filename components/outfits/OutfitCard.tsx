@@ -43,32 +43,95 @@ export default function OutfitCard({ outfit, type = "saved", onExport, onDelete 
           }),
         });
 
-        if (response.ok) {
-          const blob = await response.blob();
+        if (!response.ok) {
+          const errorText = await response.text();
+          let errorData;
+          try {
+            errorData = JSON.parse(errorText);
+          } catch {
+            errorData = { error: errorText || "Server export failed" };
+          }
+          throw new Error(errorData.error || "Server export failed");
+        }
+
+        const contentType = response.headers.get("content-type");
+        if (!contentType || !contentType.includes("image")) {
+          const text = await response.text();
+          console.error("Unexpected response type:", contentType, text);
+          throw new Error("Server did not return an image");
+        }
+
+        const blob = await response.blob();
+        
+        if (blob.size === 0) {
+          throw new Error("Received empty image file");
+        }
+
+        console.log("Export successful, blob size:", blob.size, "type:", blob.type);
+        
+        // Check if we're on mobile (Capacitor or mobile browser)
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        
+        if (isMobile) {
+          // For mobile, open the image in a new tab/window so user can save it
+          const url = window.URL.createObjectURL(blob);
+          const newWindow = window.open(url, '_blank');
+          if (!newWindow) {
+            // Popup blocked, try fallback: create a link and show it
+            const link = document.createElement("a");
+            link.href = url;
+            link.target = "_blank";
+            link.textContent = "Tap to view/download image";
+            link.style.display = "block";
+            link.style.padding = "10px";
+            link.style.marginTop = "10px";
+            link.style.backgroundColor = "#f0f0f0";
+            link.style.borderRadius = "4px";
+            link.style.textAlign = "center";
+            alert("Image ready! A link will appear below to view/download.");
+            const buttonContainer = document.querySelector(`[data-outfit-id="${outfit.id}"]`)?.parentElement;
+            if (buttonContainer) {
+              buttonContainer.appendChild(link);
+            }
+            // Clean up after 30 seconds
+            setTimeout(() => {
+              link.remove();
+              window.URL.revokeObjectURL(url);
+            }, 30000);
+          } else {
+            // Clean up after window opens
+            setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+          }
+        } else {
+          // Desktop: use standard download
           const url = window.URL.createObjectURL(blob);
           const link = document.createElement("a");
           link.href = url;
           link.download = `outfit-${outfit.name || outfit.id}-${Date.now()}.png`;
+          link.style.display = "none";
           document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(url);
           
-          if (onExport) {
-            // Convert blob to data URL for callback
-            const reader = new FileReader();
-            reader.onloadend = () => {
-              if (onExport && typeof reader.result === 'string') {
-                onExport(reader.result);
-              }
-            };
-            reader.readAsDataURL(blob);
-          }
-          return;
-        } else {
-          const error = await response.json();
-          throw new Error(error.error || "Server export failed");
+          // Trigger download
+          link.click();
+          
+          // Clean up after a short delay
+          setTimeout(() => {
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+          }, 100);
         }
+        
+        if (onExport) {
+          // Convert blob to data URL for callback
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            if (onExport && typeof reader.result === 'string') {
+              onExport(reader.result);
+            }
+          };
+          reader.readAsDataURL(blob);
+        }
+        return;
       } catch (serverError) {
         console.warn("Server-side export failed, trying client-side:", serverError);
         // Fallback to client-side export
@@ -191,7 +254,7 @@ export default function OutfitCard({ outfit, type = "saved", onExport, onDelete 
       </div>
 
       {/* Action buttons */}
-      <div className="p-4 border-t bg-gray-50 flex gap-2 flex-wrap">
+      <div className="p-4 border-t bg-gray-50 flex gap-2 flex-wrap" data-outfit-id={outfit.id}>
         <button
           onClick={handleExport}
           disabled={isExporting}

@@ -171,10 +171,20 @@ export async function POST(request: NextRequest) {
     }));
 
     // Generate final image
-    const finalImage = await canvas
-      .composite(composites)
-      .png()
-      .toBuffer();
+    let finalImage: Buffer;
+    try {
+      finalImage = await canvas
+        .composite(composites)
+        .png()
+        .toBuffer();
+      
+      if (finalImage.length === 0) {
+        throw new Error("Generated image is empty");
+      }
+    } catch (composeError) {
+      console.error("Error composing images:", composeError);
+      throw new Error(`Failed to compose images: ${composeError instanceof Error ? composeError.message : "Unknown error"}`);
+    }
 
     // Return image as response
     return new NextResponse(finalImage as unknown as BodyInit, {
