@@ -33,6 +33,7 @@ export default function ManualPurchaseForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [currentInputIndex, setCurrentInputIndex] = useState(0);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const formRef = useRef<HTMLFormElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -101,6 +102,27 @@ export default function ManualPurchaseForm({
       form.removeEventListener("focusout", handleInputBlur);
     };
   }, [handleInputFocus, handleInputBlur]);
+
+  // Track keyboard height using VisualViewport API
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+
+    const handleResize = () => {
+      // Calculate keyboard height as difference between window and viewport
+      const keyboardH = window.innerHeight - viewport.height;
+      setKeyboardHeight(Math.max(0, keyboardH));
+    };
+
+    viewport.addEventListener("resize", handleResize);
+    viewport.addEventListener("scroll", handleResize);
+    handleResize(); // Initial call
+
+    return () => {
+      viewport.removeEventListener("resize", handleResize);
+      viewport.removeEventListener("scroll", handleResize);
+    };
+  }, []);
 
   const addItem = () => {
     setItems([
@@ -419,11 +441,12 @@ export default function ManualPurchaseForm({
         </form>
         </div>
 
-        {/* Keyboard Navigation Toolbar - Mobile Only */}
+        {/* Keyboard Navigation Toolbar - Mobile Only, Fixed above keyboard */}
         {isInputFocused && (
           <div
             data-keyboard-nav
-            className="flex-shrink-0 sm:hidden border-t border-gray-200 bg-gray-100 px-4 py-2 flex items-center justify-between"
+            className="fixed left-0 right-0 sm:hidden border-t border-gray-200 bg-gray-100 px-4 py-2 flex items-center justify-between z-[60]"
+            style={{ bottom: keyboardHeight > 0 ? `${keyboardHeight}px` : '0px' }}
           >
             <div className="flex items-center gap-2">
               <button
