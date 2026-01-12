@@ -23,16 +23,35 @@ export async function exportOutfitAsImage(
     throw new Error(`Element with id "${elementId}" not found`);
   }
 
-  const canvas = await html2canvas(element, {
-    backgroundColor: "#ffffff",
-    scale: 2,
-    logging: false,
-    useCORS: true,
-    allowTaint: true, // Allow tainted canvas for mobile compatibility
-    imageTimeout: 15000, // 15 second timeout for loading images
-  });
+  // Wait for all images to load before capturing
+  const images = element.querySelectorAll("img");
+  await Promise.all(
+    Array.from(images).map((img) => {
+      if (img.complete) return Promise.resolve();
+      return new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => resolve(); // Continue even if image fails to load
+        // Timeout after 5 seconds
+        setTimeout(() => resolve(), 5000);
+      });
+    })
+  );
 
-  return canvas.toDataURL(`image/${format}`, quality);
+  try {
+    const canvas = await html2canvas(element, {
+      backgroundColor: "#ffffff",
+      scale: 2,
+      logging: false,
+      useCORS: false, // Disable CORS since we're using allowTaint
+      allowTaint: true, // Allow tainted canvas for external images
+      imageTimeout: 15000, // 15 second timeout for loading images
+    });
+
+    return canvas.toDataURL(`image/${format}`, quality);
+  } catch (error) {
+    console.error("html2canvas error:", error);
+    throw new Error(`Failed to export outfit: ${error instanceof Error ? error.message : "Unknown error"}`);
+  }
 }
 
 export function downloadImage(dataUrl: string, filename: string) {
