@@ -44,19 +44,81 @@ export default function ItemPickerModal({
     return items.filter((item) => {
       // Category filter
       const category = item.layeringCategory?.toLowerCase() || "";
-      const matchesCategory = acceptCategories.some(
+      const itemType = item.type?.toLowerCase() || "";
+      
+      let matchesCategory = acceptCategories.some(
         (ac) => category === ac || category.includes(ac)
       );
 
+      // Fallback: Check type field if layeringCategory doesn't match
+      if (!matchesCategory) {
+        // For bottom zone, check if type is pants-related
+        if (zone === "bottom") {
+          const isBottomType =
+            itemType.includes("pants") ||
+            itemType.includes("jeans") ||
+            itemType.includes("trousers") ||
+            itemType.includes("shorts") ||
+            itemType.includes("skirt") ||
+            itemType.includes("leggings") ||
+            itemType.includes("joggers") ||
+            itemType.includes("chinos");
+          if (isBottomType) matchesCategory = true;
+        }
+        // For top zone, check if type is top-related
+        else if (zone === "top") {
+          const isTopType =
+            itemType.includes("shirt") ||
+            itemType.includes("t-shirt") ||
+            itemType.includes("blouse") ||
+            itemType.includes("sweater") ||
+            itemType.includes("hoodie") ||
+            itemType.includes("cardigan") ||
+            itemType.includes("tank") ||
+            itemType.includes("top");
+          if (isTopType) matchesCategory = true;
+        }
+        // For jacket zone, check if type is jacket-related
+        else if (zone === "jacket") {
+          const isJacketType =
+            itemType.includes("jacket") ||
+            itemType.includes("coat") ||
+            itemType.includes("blazer") ||
+            itemType.includes("parka") ||
+            itemType.includes("windbreaker") ||
+            itemType.includes("bomber");
+          if (isJacketType) matchesCategory = true;
+        }
+        // For shoes zone, check if type is shoe-related
+        else if (zone === "shoes") {
+          const isShoeType =
+            itemType.includes("shoe") ||
+            itemType.includes("boot") ||
+            itemType.includes("sandal") ||
+            itemType.includes("heel") ||
+            itemType.includes("sneaker") ||
+            itemType.includes("loafer");
+          if (isShoeType) matchesCategory = true;
+        }
+        // For full-body zone, check if type is dress/jumpsuit-related
+        else if (zone === "fullBody") {
+          const isFullBodyType =
+            itemType.includes("dress") ||
+            itemType.includes("jumpsuit") ||
+            itemType.includes("romper") ||
+            itemType.includes("overalls");
+          if (isFullBodyType) matchesCategory = true;
+        }
+      }
+
       // Special case for head zone - only show hats
       if (zone === "head") {
-        const type = item.type?.toLowerCase() || "";
         const isHat =
-          type.includes("hat") ||
-          type.includes("cap") ||
-          type.includes("beanie") ||
-          type.includes("fedora") ||
-          type.includes("beret");
+          itemType.includes("hat") ||
+          itemType.includes("cap") ||
+          itemType.includes("beanie") ||
+          itemType.includes("fedora") ||
+          itemType.includes("beret");
         if (!isHat) return false;
       }
 

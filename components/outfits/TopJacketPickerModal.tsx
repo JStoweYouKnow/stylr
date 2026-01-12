@@ -37,7 +37,23 @@ export default function TopJacketPickerModal({
   const tops = useMemo(() => {
     return items.filter((item) => {
       const category = item.layeringCategory?.toLowerCase() || "";
-      const matchesCategory = category === "top" || category.includes("top");
+      const itemType = item.type?.toLowerCase() || "";
+      
+      // Check layeringCategory first
+      let matchesCategory = category === "top" || category.includes("top");
+      
+      // Fallback: Check type field if layeringCategory doesn't match
+      if (!matchesCategory) {
+        matchesCategory =
+          itemType.includes("shirt") ||
+          itemType.includes("t-shirt") ||
+          itemType.includes("blouse") ||
+          itemType.includes("sweater") ||
+          itemType.includes("hoodie") ||
+          itemType.includes("cardigan") ||
+          itemType.includes("tank") ||
+          itemType.includes("top");
+      }
       
       if (!matchesCategory) return false;
 
@@ -45,7 +61,7 @@ export default function TopJacketPickerModal({
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         return (
-          item.type?.toLowerCase().includes(query) ||
+          itemType.includes(query) ||
           item.primaryColor?.toLowerCase().includes(query)
         );
       }
@@ -57,7 +73,21 @@ export default function TopJacketPickerModal({
   const jackets = useMemo(() => {
     return items.filter((item) => {
       const category = item.layeringCategory?.toLowerCase() || "";
-      const matchesCategory = category === "jacket" || category.includes("jacket");
+      const itemType = item.type?.toLowerCase() || "";
+      
+      // Check layeringCategory first
+      let matchesCategory = category === "jacket" || category.includes("jacket");
+      
+      // Fallback: Check type field if layeringCategory doesn't match
+      if (!matchesCategory) {
+        matchesCategory =
+          itemType.includes("jacket") ||
+          itemType.includes("coat") ||
+          itemType.includes("blazer") ||
+          itemType.includes("parka") ||
+          itemType.includes("windbreaker") ||
+          itemType.includes("bomber");
+      }
       
       if (!matchesCategory) return false;
 
@@ -65,7 +95,7 @@ export default function TopJacketPickerModal({
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         return (
-          item.type?.toLowerCase().includes(query) ||
+          itemType.includes(query) ||
           item.primaryColor?.toLowerCase().includes(query)
         );
       }

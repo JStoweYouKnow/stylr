@@ -52,7 +52,11 @@ export default function MannequinZone({
       canDrop: (dragItem: DragItem) => {
         if (disabled) return false;
         const category = dragItem.layeringCategory?.toLowerCase() || "";
-        return acceptCategories.some((ac) => category === ac || category.includes(ac));
+        let matchesCategory = acceptCategories.some((ac) => category === ac || category.includes(ac));
+        
+        // Fallback: If category doesn't match, we need the full item to check type
+        // This will be handled by the onDrop handler which has access to the full item
+        return matchesCategory;
       },
       drop: (dragItem: DragItem) => {
         onDrop(dragItem.id);

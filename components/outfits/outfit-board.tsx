@@ -77,6 +77,75 @@ function OutfitBoardContent({ onSaveSuccess }: OutfitBoardProps) {
     const item = wardrobeItems.find((i) => i.id === itemId);
     if (!item) return;
 
+    // Validate category match (with fallback to type checking)
+    const category = item.layeringCategory?.toLowerCase() || "";
+    const itemType = item.type?.toLowerCase() || "";
+    const acceptCategories = ZONE_CONFIG[zone] || [];
+    
+    let matchesCategory = acceptCategories.some(
+      (ac) => category === ac || category.includes(ac)
+    );
+
+    // Fallback: Check type field if layeringCategory doesn't match
+    if (!matchesCategory) {
+      if (zone === "bottom") {
+        matchesCategory =
+          itemType.includes("pants") ||
+          itemType.includes("jeans") ||
+          itemType.includes("trousers") ||
+          itemType.includes("shorts") ||
+          itemType.includes("skirt") ||
+          itemType.includes("leggings") ||
+          itemType.includes("joggers") ||
+          itemType.includes("chinos");
+      } else if (zone === "top") {
+        matchesCategory =
+          itemType.includes("shirt") ||
+          itemType.includes("t-shirt") ||
+          itemType.includes("blouse") ||
+          itemType.includes("sweater") ||
+          itemType.includes("hoodie") ||
+          itemType.includes("cardigan") ||
+          itemType.includes("tank") ||
+          itemType.includes("top");
+      } else if (zone === "jacket") {
+        matchesCategory =
+          itemType.includes("jacket") ||
+          itemType.includes("coat") ||
+          itemType.includes("blazer") ||
+          itemType.includes("parka") ||
+          itemType.includes("windbreaker") ||
+          itemType.includes("bomber");
+      } else if (zone === "shoes") {
+        matchesCategory =
+          itemType.includes("shoe") ||
+          itemType.includes("boot") ||
+          itemType.includes("sandal") ||
+          itemType.includes("heel") ||
+          itemType.includes("sneaker") ||
+          itemType.includes("loafer");
+      } else if (zone === "fullBody") {
+        matchesCategory =
+          itemType.includes("dress") ||
+          itemType.includes("jumpsuit") ||
+          itemType.includes("romper") ||
+          itemType.includes("overalls");
+      } else if (zone === "head") {
+        matchesCategory =
+          itemType.includes("hat") ||
+          itemType.includes("cap") ||
+          itemType.includes("beanie") ||
+          itemType.includes("fedora") ||
+          itemType.includes("beret");
+      }
+    }
+
+    // Only proceed if category matches (or type fallback matches)
+    if (!matchesCategory) {
+      console.warn(`Item ${item.type} (category: ${category}) doesn't match zone ${zone}`);
+      return;
+    }
+
     // Haptic feedback
     if (typeof window !== "undefined" && "vibrate" in navigator) {
       navigator.vibrate(50);
@@ -229,7 +298,69 @@ function OutfitBoardContent({ onSaveSuccess }: OutfitBoardProps) {
   const filteredWardrobeItems = categoryFilter
     ? wardrobeItems.filter((item) => {
         const category = item.layeringCategory?.toLowerCase() || "";
-        return category === categoryFilter || category.includes(categoryFilter);
+        const itemType = item.type?.toLowerCase() || "";
+        
+        // Check layeringCategory first
+        let matches = category === categoryFilter || category.includes(categoryFilter);
+        
+        // Fallback: Check type field if layeringCategory doesn't match
+        if (!matches) {
+          if (categoryFilter === "bottom") {
+            matches =
+              itemType.includes("pants") ||
+              itemType.includes("jeans") ||
+              itemType.includes("trousers") ||
+              itemType.includes("shorts") ||
+              itemType.includes("skirt") ||
+              itemType.includes("leggings") ||
+              itemType.includes("joggers") ||
+              itemType.includes("chinos");
+          } else if (categoryFilter === "top") {
+            matches =
+              itemType.includes("shirt") ||
+              itemType.includes("t-shirt") ||
+              itemType.includes("blouse") ||
+              itemType.includes("sweater") ||
+              itemType.includes("hoodie") ||
+              itemType.includes("cardigan") ||
+              itemType.includes("tank") ||
+              itemType.includes("top");
+          } else if (categoryFilter === "jacket") {
+            matches =
+              itemType.includes("jacket") ||
+              itemType.includes("coat") ||
+              itemType.includes("blazer") ||
+              itemType.includes("parka") ||
+              itemType.includes("windbreaker") ||
+              itemType.includes("bomber");
+          } else if (categoryFilter === "shoes") {
+            matches =
+              itemType.includes("shoe") ||
+              itemType.includes("boot") ||
+              itemType.includes("sandal") ||
+              itemType.includes("heel") ||
+              itemType.includes("sneaker") ||
+              itemType.includes("loafer");
+          } else if (categoryFilter === "full-body") {
+            matches =
+              itemType.includes("dress") ||
+              itemType.includes("jumpsuit") ||
+              itemType.includes("romper") ||
+              itemType.includes("overalls");
+          } else if (categoryFilter === "accessories") {
+            matches =
+              itemType.includes("hat") ||
+              itemType.includes("cap") ||
+              itemType.includes("beanie") ||
+              itemType.includes("fedora") ||
+              itemType.includes("beret") ||
+              itemType.includes("scarf") ||
+              itemType.includes("belt") ||
+              itemType.includes("bag");
+          }
+        }
+        
+        return matches;
       })
     : wardrobeItems;
 
