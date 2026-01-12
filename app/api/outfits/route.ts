@@ -29,16 +29,25 @@ export async function GET(request: NextRequest) {
           select: {
             id: true,
             imageUrl: true,
+            productImageUrl: true,
             type: true,
             primaryColor: true,
           },
         });
 
+        // Use productImageUrl if available (for purchase items), otherwise use imageUrl
+        const itemsWithImages = items.map((item) => ({
+          id: item.id,
+          imageUrl: item.productImageUrl || item.imageUrl,
+          type: item.type,
+          primaryColor: item.primaryColor,
+        }));
+
         return {
           id: outfit.id,
           name: outfit.name,
           createdAt: outfit.createdAt,
-          items,
+          items: itemsWithImages,
         };
       })
     );
