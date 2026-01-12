@@ -76,72 +76,110 @@ export default function OutfitCard({ outfit, type = "saved", onExport, onDelete 
         // Try multiple approaches for iOS
         const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
         const isCapacitor = (window as any).Capacitor !== undefined;
-        
+
         if (isIOS || isCapacitor) {
-          // For iOS/Capacitor: Create a visible link that user can tap
-          // This is more reliable than window.open() which might be blocked
-          const linkContainer = document.createElement("div");
-          linkContainer.style.cssText = `
+          // For iOS/Capacitor: Try Web Share API first, then fallback to modal
+          if (navigator.share && navigator.canShare) {
+            try {
+              const file = new File([blob], filename, { type: 'image/png' });
+              const shareData = { files: [file] };
+
+              if (navigator.canShare(shareData)) {
+                await navigator.share(shareData);
+                window.URL.revokeObjectURL(url);
+                return;
+              }
+            } catch (shareError) {
+              console.log("Share API failed or cancelled:", shareError);
+              // Continue to fallback modal
+            }
+          }
+
+          // Fallback: Create a visible modal with the image
+          const overlay = document.createElement("div");
+          overlay.style.cssText = `
             position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 99999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+          `;
+
+          const modalContent = document.createElement("div");
+          modalContent.style.cssText = `
             background: white;
             padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-            z-index: 10000;
-            text-align: center;
+            border-radius: 16px;
             max-width: 90%;
+            max-height: 80vh;
+            overflow: auto;
+            text-align: center;
           `;
-          
-          const message = document.createElement("p");
-          message.textContent = "Tap the link below to view and save your outfit image:";
-          message.style.cssText = "margin-bottom: 15px; font-size: 16px;";
-          linkContainer.appendChild(message);
-          
-          const link = document.createElement("a");
-          link.href = url;
-          link.target = "_blank";
-          link.textContent = "View Outfit Image";
-          link.style.cssText = `
-            display: inline-block;
-            padding: 12px 24px;
-            background: #000;
-            color: white;
-            text-decoration: none;
+
+          const title = document.createElement("h3");
+          title.textContent = "Your Outfit Image";
+          title.style.cssText = "margin: 0 0 15px 0; font-size: 18px; font-weight: 600;";
+          modalContent.appendChild(title);
+
+          const imgPreview = document.createElement("img");
+          imgPreview.src = url;
+          imgPreview.style.cssText = `
+            max-width: 100%;
+            max-height: 50vh;
             border-radius: 8px;
-            font-weight: 600;
-            font-size: 16px;
+            margin-bottom: 15px;
           `;
-          linkContainer.appendChild(link);
-          
+          modalContent.appendChild(imgPreview);
+
+          const instructions = document.createElement("p");
+          instructions.textContent = "Press and hold the image above to save it to your photos.";
+          instructions.style.cssText = "color: #666; font-size: 14px; margin-bottom: 15px;";
+          modalContent.appendChild(instructions);
+
           const closeBtn = document.createElement("button");
           closeBtn.textContent = "Close";
           closeBtn.style.cssText = `
-            margin-top: 15px;
-            padding: 8px 16px;
-            background: #f0f0f0;
+            padding: 12px 32px;
+            background: #000;
+            color: white;
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
             cursor: pointer;
-            font-size: 14px;
           `;
           closeBtn.onclick = () => {
-            document.body.removeChild(linkContainer);
+            document.body.removeChild(overlay);
             window.URL.revokeObjectURL(url);
           };
-          linkContainer.appendChild(closeBtn);
-          
-          document.body.appendChild(linkContainer);
-          
-          // Auto-close after 30 seconds
-          setTimeout(() => {
-            if (document.body.contains(linkContainer)) {
-              document.body.removeChild(linkContainer);
+          modalContent.appendChild(closeBtn);
+
+          overlay.appendChild(modalContent);
+
+          // Close on backdrop click
+          overlay.onclick = (e) => {
+            if (e.target === overlay) {
+              document.body.removeChild(overlay);
               window.URL.revokeObjectURL(url);
             }
-          }, 30000);
+          };
+
+          document.body.appendChild(overlay);
+
+          // Auto-close after 60 seconds
+          setTimeout(() => {
+            if (document.body.contains(overlay)) {
+              document.body.removeChild(overlay);
+              window.URL.revokeObjectURL(url);
+            }
+          }, 60000);
         } else {
           // Desktop browsers: trigger download
           const link = document.createElement("a");
