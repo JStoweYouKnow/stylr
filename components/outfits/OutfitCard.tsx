@@ -132,7 +132,6 @@ export default function OutfitCard({ outfit, type = "saved", onExport, onDelete 
               <img
                 src={item.imageUrl}
                 alt={item.type || "Clothing item"}
-                crossOrigin="anonymous"
                 className="w-full h-full object-cover"
               />
               <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-2">
