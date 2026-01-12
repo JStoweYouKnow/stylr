@@ -75,6 +75,10 @@ export default function ManualPurchaseForm({
       if (index !== -1) {
         setCurrentInputIndex(index);
       }
+      // Scroll the focused input into view after keyboard appears
+      setTimeout(() => {
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 300);
     }
   }, [getFormInputs]);
 
@@ -232,8 +236,11 @@ export default function ManualPurchaseForm({
   ];
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start sm:items-center justify-center z-50 p-4 pt-8 sm:pt-4 overflow-y-auto">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[85vh] sm:max-h-[90vh] flex flex-col my-auto sm:my-0">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start sm:items-center justify-center z-50 p-4 pt-4 sm:pt-4 overflow-y-auto">
+      <div
+        className="bg-white rounded-lg shadow-xl max-w-4xl w-full flex flex-col"
+        style={{ maxHeight: keyboardHeight > 0 ? `calc(100vh - ${keyboardHeight}px - 32px)` : '85vh' }}
+      >
         {/* Header - Fixed */}
         <div className="flex-shrink-0 border-b border-gray-200 px-6 py-4 flex items-center justify-between">
           <h2 className="text-2xl font-bold">Add Purchase Manually</h2>
@@ -441,12 +448,11 @@ export default function ManualPurchaseForm({
         </form>
         </div>
 
-        {/* Keyboard Navigation Toolbar - Mobile Only, Fixed above keyboard */}
+        {/* Keyboard Navigation Toolbar - Mobile Only */}
         {isInputFocused && (
           <div
             data-keyboard-nav
-            className="fixed left-0 right-0 sm:hidden border-t border-gray-200 bg-gray-100 px-4 py-2 flex items-center justify-between z-[60]"
-            style={{ bottom: keyboardHeight > 0 ? `${keyboardHeight}px` : '0px' }}
+            className="flex-shrink-0 sm:hidden border-t border-gray-200 bg-gray-100 px-4 py-2 flex items-center justify-between"
           >
             <div className="flex items-center gap-2">
               <button
