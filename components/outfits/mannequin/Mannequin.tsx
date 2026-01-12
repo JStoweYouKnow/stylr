@@ -170,7 +170,7 @@ export default function Mannequin({
       </svg>
 
       {/* Clothing Layers - rendered behind zones */}
-      <div className="absolute inset-0 pointer-events-none">
+      <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 1 }}>
         {/* Base layer: full-body OR top+bottom */}
         {outfit.fullBody ? (
           <ClothingLayer
@@ -216,7 +216,7 @@ export default function Mannequin({
       </div>
 
       {/* Interactive Zones */}
-      <div className="absolute inset-0">
+      <div className="absolute inset-0" style={{ zIndex: 100 }}>
         {zones.map((zone) => (
           <MannequinZone
             key={zone.id}

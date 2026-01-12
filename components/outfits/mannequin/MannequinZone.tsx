@@ -89,10 +89,13 @@ export default function MannequinZone({
     onRemove();
   };
 
+  // Ensure top/bottom zones are always visible and on top when full-body exists
+  const zIndex = willReplaceFullBody ? 50 : isOverlay ? 40 : isFullBody ? 10 : 30;
+
   return (
     <div
       ref={drop as unknown as React.RefObject<HTMLDivElement>}
-      style={style}
+      style={{ ...style, zIndex }}
       onClick={handleClick}
       className={`
         rounded-lg border-2 border-dashed transition-all duration-200 cursor-pointer
@@ -104,19 +107,19 @@ export default function MannequinZone({
         ${item ? "border-solid border-green-400 bg-green-50/20" : ""}
         ${isOverlay && isEmpty ? "border-transparent bg-transparent hover:border-gray-300 hover:bg-gray-50/20" : ""}
         ${isFullBody && isEmpty ? "border-purple-300 bg-purple-50/10" : ""}
-        ${willReplaceFullBody && isEmpty ? "border-orange-300 bg-orange-50/20" : ""}
+        ${willReplaceFullBody && isEmpty ? "border-orange-400 bg-orange-100/60 border-2 shadow-md" : ""}
       `}
       data-drop-zone={zone}
     >
       {/* Zone Label */}
       {isEmpty && !isOverlay && (
         <div className="text-center p-2">
-          <span className="text-xs text-gray-400 font-medium">
+          <span className={`text-xs font-medium ${willReplaceFullBody ? "text-orange-600" : "text-gray-400"}`}>
             {isFullBody ? "Dress/Jumpsuit" : label}
           </span>
           {willReplaceFullBody && (
-            <p className="text-[10px] text-orange-500 mt-1 font-medium">
-              Will replace dress/jumpsuit
+            <p className="text-[10px] text-orange-600 mt-1 font-semibold">
+              Tap to replace dress/jumpsuit
             </p>
           )}
         </div>
