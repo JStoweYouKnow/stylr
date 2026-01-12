@@ -69,23 +69,31 @@ export default function OutfitCard({ outfit, type = "saved", onExport, onDelete 
           throw new Error("Received empty image file");
         }
 
-        // Create download URL
+        // Create blob URL
         const url = window.URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `outfit-${outfit.name || outfit.id}-${Date.now()}.png`;
         
-        // Ensure link is in DOM for iOS Safari
-        document.body.appendChild(link);
+        // iOS/Safari doesn't support programmatic downloads - open in new tab
+        // User can then use the share button to save the image
+        const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+        const isSafari = /Safari/i.test(navigator.userAgent) && !/Chrome|CriOS|FxiOS/i.test(navigator.userAgent);
         
-        // Trigger download
-        link.click();
-        
-        // Clean up
-        setTimeout(() => {
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(url);
-        }, 200);
+        if (isIOS || isSafari) {
+          // Open image in new tab - user can save via share button
+          window.open(url, '_blank');
+          // Clean up after a delay
+          setTimeout(() => window.URL.revokeObjectURL(url), 10000);
+        } else {
+          // Desktop browsers: trigger download
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = `outfit-${outfit.name || outfit.id}-${Date.now()}.png`;
+          document.body.appendChild(link);
+          link.click();
+          setTimeout(() => {
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+          }, 200);
+        }
         
         if (onExport) {
           // Convert blob to data URL for callback
