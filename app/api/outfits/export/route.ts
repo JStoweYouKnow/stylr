@@ -112,10 +112,8 @@ export async function POST(request: NextRequest) {
     const padding = 20;
     const itemsPerRow = Math.min(4, itemsWithImages.length);
     const numRows = Math.ceil(itemsWithImages.length / itemsPerRow);
-    const headerHeight = 120;
-    const footerHeight = 60;
     const canvasWidth = itemsPerRow * itemSize + (itemsPerRow + 1) * padding;
-    const canvasHeight = headerHeight + numRows * itemSize + (numRows + 1) * padding + footerHeight;
+    const canvasHeight = numRows * itemSize + (numRows + 1) * padding;
 
     // Create base canvas
     const canvas = sharp({
@@ -135,7 +133,7 @@ export async function POST(request: NextRequest) {
       const row = Math.floor(i / itemsPerRow);
       const col = i % itemsPerRow;
       const x = padding + col * (itemSize + padding);
-      const y = headerHeight + padding + row * (itemSize + padding);
+      const y = padding + row * (itemSize + padding);
 
       const imageBuffer = await fetchImageAsBuffer(item.imageUrl);
       if (imageBuffer) {
@@ -165,44 +163,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Compose images onto canvas
+    // Compose images onto canvas (no text overlays to avoid fontconfig issues)
     const composites = itemImages.map((item) => ({
       input: item.buffer,
       left: item.x,
       top: item.y,
     }));
-
-    // Add header text (outfit name) using SVG
-    const outfitName = type === "saved" ? (outfit as any).name : `Outfit ${outfitId}`;
-    const occasionText = type === "recommendation" && (outfit as any).occasion 
-      ? `<text x="${canvasWidth / 2}" y="90" font-family="Arial, sans-serif" font-size="18" text-anchor="middle" fill="#666666">For: ${(outfit as any).occasion}</text>`
-      : '';
-    
-    const headerSvg = Buffer.from(`
-      <svg width="${canvasWidth}" height="${headerHeight}" xmlns="http://www.w3.org/2000/svg">
-        <text x="${canvasWidth / 2}" y="60" font-family="Arial, sans-serif" font-size="32" font-weight="bold" text-anchor="middle" fill="#000000">${outfitName || `Outfit ${outfitId}`}</text>
-        ${occasionText}
-      </svg>
-    `);
-
-    composites.push({
-      input: headerSvg,
-      left: 0,
-      top: 0,
-    });
-
-    // Add footer watermark
-    const footerSvg = Buffer.from(`
-      <svg width="${canvasWidth}" height="${footerHeight}" xmlns="http://www.w3.org/2000/svg">
-        <text x="${canvasWidth / 2}" y="35" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#999999">Created with Stylr</text>
-      </svg>
-    `);
-    
-    composites.push({
-      input: footerSvg,
-      left: 0,
-      top: canvasHeight - footerHeight,
-    });
 
     // Generate final image
     const finalImage = await canvas
