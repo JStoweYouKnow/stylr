@@ -89,3 +89,53 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// DELETE /api/outfits - Delete a saved outfit
+export async function DELETE(request: NextRequest) {
+  try {
+    const userId = await getCurrentUserId();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Outfit ID is required" },
+        { status: 400 }
+      );
+    }
+
+    // Verify the outfit belongs to the user before deleting
+    const outfit = await prisma.savedOutfit.findFirst({
+      where: {
+        id: parseInt(id),
+        userId,
+      },
+    });
+
+    if (!outfit) {
+      return NextResponse.json(
+        { error: "Outfit not found" },
+        { status: 404 }
+      );
+    }
+
+    await prisma.savedOutfit.delete({
+      where: { id: parseInt(id) },
+    });
+
+    return NextResponse.json({
+      message: "Outfit deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting outfit:", error);
+    return NextResponse.json(
+      { error: "Failed to delete outfit" },
+      { status: 500 }
+    );
+  }
+}
+

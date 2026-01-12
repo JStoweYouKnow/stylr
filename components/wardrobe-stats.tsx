@@ -35,6 +35,87 @@ const COLORS = [
   "#87ceeb",
 ];
 
+// Map color names to CSS colors for label styling
+function getColorValue(colorName: string): string {
+  const name = colorName.toLowerCase().trim();
+
+  // Common color mappings
+  const colorMap: Record<string, string> = {
+    // Basic colors
+    black: "#000000",
+    white: "#ffffff",
+    red: "#dc2626",
+    blue: "#2563eb",
+    green: "#16a34a",
+    yellow: "#eab308",
+    orange: "#f97316",
+    purple: "#9333ea",
+    pink: "#ec4899",
+    brown: "#92400e",
+    gray: "#6b7280",
+    grey: "#6b7280",
+
+    // Common variations
+    navy: "#1e3a5a",
+    "navy blue": "#1e3a5a",
+    beige: "#d4b896",
+    cream: "#fffdd0",
+    tan: "#d2b48c",
+    khaki: "#c3b091",
+    maroon: "#800000",
+    burgundy: "#800020",
+    "lush burgundy": "#800020",
+    olive: "#808000",
+    teal: "#008080",
+    coral: "#ff7f50",
+    salmon: "#fa8072",
+    mustard: "#e1ad01",
+    charcoal: "#36454f",
+    ivory: "#fffff0",
+    taupe: "#483c32",
+    "soft taupe": "#8b7d6b",
+    mauve: "#e0b0ff",
+    lavender: "#e6e6fa",
+    mint: "#98fb98",
+    peach: "#ffcba4",
+    rust: "#b7410e",
+    wine: "#722f37",
+    plum: "#8e4585",
+    slate: "#708090",
+    denim: "#1560bd",
+    indigo: "#4b0082",
+    aqua: "#00ffff",
+    turquoise: "#40e0d0",
+    gold: "#ffd700",
+    silver: "#c0c0c0",
+    bronze: "#cd7f32",
+    copper: "#b87333",
+    "off white": "#faf9f6",
+    "off-white": "#faf9f6",
+    bracken: "#4a2c2a",
+    camel: "#c19a6b",
+    chocolate: "#7b3f00",
+    espresso: "#3c2415",
+    sand: "#c2b280",
+    stone: "#928e85",
+  };
+
+  // Check direct match
+  if (colorMap[name]) {
+    return colorMap[name];
+  }
+
+  // Check if any key is contained in the name
+  for (const [key, value] of Object.entries(colorMap)) {
+    if (name.includes(key)) {
+      return value;
+    }
+  }
+
+  // Try to use the color name directly as CSS (works for basic colors)
+  return "#666666"; // Default gray for unknown colors
+}
+
 export default function WardrobeStats() {
   const [analytics, setAnalytics] = useState<WardrobeAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
@@ -106,14 +187,36 @@ export default function WardrobeStats() {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ payload }) =>
-                    `${payload?.color ?? "Unknown"}: ${payload?.count ?? 0}`
-                  }
+                  label={({ cx, cy, midAngle, outerRadius, payload }) => {
+                    const RADIAN = Math.PI / 180;
+                    const radius = (outerRadius ?? 80) * 1.35;
+                    const angle = midAngle ?? 0;
+                    const centerX = cx ?? 0;
+                    const centerY = cy ?? 0;
+                    const x = centerX + radius * Math.cos(-angle * RADIAN);
+                    const y = centerY + radius * Math.sin(-angle * RADIAN);
+                    const colorName = payload?.color ?? "Unknown";
+                    const textColor = getColorValue(colorName);
+
+                    return (
+                      <text
+                        x={x}
+                        y={y}
+                        fill={textColor}
+                        textAnchor={x > centerX ? "start" : "end"}
+                        dominantBaseline="central"
+                        fontSize={12}
+                        fontWeight={500}
+                      >
+                        {`${colorName}: ${payload?.count ?? 0}`}
+                      </text>
+                    );
+                  }}
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="count"
                 >
-                  {analytics.colorDistribution.map((entry, index) => (
+                  {analytics.colorDistribution.map((_, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
@@ -161,7 +264,7 @@ export default function WardrobeStats() {
                   fill="#82ca9d"
                   dataKey="count"
                 >
-                  {analytics.styleMetrics.map((entry, index) => (
+                  {analytics.styleMetrics.map((_, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>

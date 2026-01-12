@@ -21,6 +21,7 @@ interface OutfitCardProps {
   };
   type?: "saved" | "recommendation";
   onExport?: (dataUrl: string) => void;
+  onDelete?: (id: number) => void;
 }
 
 export default function OutfitCard({ outfit, type = "saved", onExport }: OutfitCardProps) {
