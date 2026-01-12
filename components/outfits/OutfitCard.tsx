@@ -71,22 +71,82 @@ export default function OutfitCard({ outfit, type = "saved", onExport, onDelete 
 
         // Create blob URL
         const url = window.URL.createObjectURL(blob);
+        const filename = `outfit-${outfit.name || outfit.id}-${Date.now()}.png`;
         
-        // iOS/Safari doesn't support programmatic downloads - open in new tab
-        // User can then use the share button to save the image
+        // Try multiple approaches for iOS
         const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-        const isSafari = /Safari/i.test(navigator.userAgent) && !/Chrome|CriOS|FxiOS/i.test(navigator.userAgent);
+        const isCapacitor = (window as any).Capacitor !== undefined;
         
-        if (isIOS || isSafari) {
-          // Open image in new tab - user can save via share button
-          window.open(url, '_blank');
-          // Clean up after a delay
-          setTimeout(() => window.URL.revokeObjectURL(url), 10000);
+        if (isIOS || isCapacitor) {
+          // For iOS/Capacitor: Create a visible link that user can tap
+          // This is more reliable than window.open() which might be blocked
+          const linkContainer = document.createElement("div");
+          linkContainer.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            z-index: 10000;
+            text-align: center;
+            max-width: 90%;
+          `;
+          
+          const message = document.createElement("p");
+          message.textContent = "Tap the link below to view and save your outfit image:";
+          message.style.cssText = "margin-bottom: 15px; font-size: 16px;";
+          linkContainer.appendChild(message);
+          
+          const link = document.createElement("a");
+          link.href = url;
+          link.target = "_blank";
+          link.textContent = "View Outfit Image";
+          link.style.cssText = `
+            display: inline-block;
+            padding: 12px 24px;
+            background: #000;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 16px;
+          `;
+          linkContainer.appendChild(link);
+          
+          const closeBtn = document.createElement("button");
+          closeBtn.textContent = "Close";
+          closeBtn.style.cssText = `
+            margin-top: 15px;
+            padding: 8px 16px;
+            background: #f0f0f0;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+          `;
+          closeBtn.onclick = () => {
+            document.body.removeChild(linkContainer);
+            window.URL.revokeObjectURL(url);
+          };
+          linkContainer.appendChild(closeBtn);
+          
+          document.body.appendChild(linkContainer);
+          
+          // Auto-close after 30 seconds
+          setTimeout(() => {
+            if (document.body.contains(linkContainer)) {
+              document.body.removeChild(linkContainer);
+              window.URL.revokeObjectURL(url);
+            }
+          }, 30000);
         } else {
           // Desktop browsers: trigger download
           const link = document.createElement("a");
           link.href = url;
-          link.download = `outfit-${outfit.name || outfit.id}-${Date.now()}.png`;
+          link.download = filename;
           document.body.appendChild(link);
           link.click();
           setTimeout(() => {
