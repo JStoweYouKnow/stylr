@@ -36,6 +36,7 @@ export default function Mannequin({
   onRemoveItem,
 }: MannequinProps) {
   const hasFullBody = outfit.fullBody !== null;
+  const hasTopOrBottom = outfit.top !== null || outfit.bottom !== null;
 
   // Zone configuration with position percentages
   const zones = [
@@ -53,7 +54,7 @@ export default function Mannequin({
       acceptCategories: ["top"],
       top: "15%",
       height: "25%",
-      disabled: hasFullBody,
+      disabled: false, // Allow dropping to replace full-body
     },
     {
       id: "jacket" as const,
@@ -70,7 +71,7 @@ export default function Mannequin({
       acceptCategories: ["bottom"],
       top: "40%",
       height: "35%",
-      disabled: hasFullBody,
+      disabled: false, // Allow dropping to replace full-body
     },
     {
       id: "fullBody" as const,
@@ -78,7 +79,7 @@ export default function Mannequin({
       acceptCategories: ["full-body"],
       top: "15%",
       height: "60%",
-      disabled: false,
+      disabled: hasTopOrBottom, // Disable when top/bottom exist (but allow dropping to replace)
       isFullBody: true,
     },
     {
@@ -237,6 +238,7 @@ export default function Mannequin({
             isOverlay={zone.isOverlay}
             isFullBody={zone.isFullBody}
             hasFullBody={hasFullBody}
+            hasTopOrBottom={hasTopOrBottom}
           />
         ))}
       </div>

@@ -28,6 +28,7 @@ interface MannequinZoneProps {
   isOverlay?: boolean;
   isFullBody?: boolean;
   hasFullBody?: boolean;
+  hasTopOrBottom?: boolean;
 }
 
 export default function MannequinZone({
@@ -43,6 +44,7 @@ export default function MannequinZone({
   isOverlay = false,
   isFullBody = false,
   hasFullBody = false,
+  hasTopOrBottom = false,
 }: MannequinZoneProps) {
   const [{ isOver, canDrop }, drop] = useDrop<DragItem, void, CollectedProps>(
     () => ({
@@ -66,11 +68,11 @@ export default function MannequinZone({
   // For full-body zone, only show when no top/bottom OR when dragging a full-body item
   const shouldShowFullBodyZone = isFullBody && !hasFullBody;
 
-  // For top/bottom zones when full-body is present, show as disabled overlay
-  const isDisabledByFullBody = disabled && hasFullBody;
+  // Check if this zone will replace full-body (top/bottom zones when full-body exists)
+  const willReplaceFullBody = hasFullBody && (zone === "top" || zone === "bottom");
 
-  // Don't render full-body zone when there's already a full-body item (except for hover)
-  if (isFullBody && hasFullBody && !isOver) {
+  // Don't render full-body zone when there's already a full-body item OR when top/bottom exist (except for hover)
+  if (isFullBody && (hasFullBody || hasTopOrBottom) && !isOver) {
     return null;
   }
 
@@ -102,6 +104,7 @@ export default function MannequinZone({
         ${item ? "border-solid border-green-400 bg-green-50/20" : ""}
         ${isOverlay && isEmpty ? "border-transparent bg-transparent hover:border-gray-300 hover:bg-gray-50/20" : ""}
         ${isFullBody && isEmpty ? "border-purple-300 bg-purple-50/10" : ""}
+        ${willReplaceFullBody && isEmpty ? "border-orange-300 bg-orange-50/20" : ""}
       `}
       data-drop-zone={zone}
     >
@@ -111,9 +114,9 @@ export default function MannequinZone({
           <span className="text-xs text-gray-400 font-medium">
             {isFullBody ? "Dress/Jumpsuit" : label}
           </span>
-          {isDisabledByFullBody && (
-            <p className="text-[10px] text-gray-400 mt-1">
-              Remove full-body item first
+          {willReplaceFullBody && (
+            <p className="text-[10px] text-orange-500 mt-1 font-medium">
+              Will replace dress/jumpsuit
             </p>
           )}
         </div>
