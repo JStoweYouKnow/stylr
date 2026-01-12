@@ -60,6 +60,11 @@ export default function OutfitsPage() {
     fetchOutfits();
   }
 
+  function handleDeleteOutfit(id: number) {
+    setOutfits((prev) => prev.filter((outfit) => outfit.id !== id));
+    toast.success("Outfit deleted successfully!");
+  }
+
   return (
     <div>
       <h2 className="text-3xl font-semibold mb-6">Outfits</h2>
@@ -118,7 +123,12 @@ export default function OutfitsPage() {
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {outfits.map((outfit) => (
-                <OutfitCard key={outfit.id} outfit={outfit} />
+                <OutfitCard
+                  key={outfit.id}
+                  outfit={outfit}
+                  type="saved"
+                  onDelete={handleDeleteOutfit}
+                />
               ))}
             </div>
           )}
