@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import toast from "react-hot-toast";
 
@@ -31,6 +31,76 @@ export default function ManualPurchaseForm({
     { name: "", price: undefined, type: "", color: "", brand: "", imageUrl: "" },
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isInputFocused, setIsInputFocused] = useState(false);
+  const [currentInputIndex, setCurrentInputIndex] = useState(0);
+  const formRef = useRef<HTMLFormElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const getFormInputs = useCallback(() => {
+    if (!formRef.current) return [];
+    return Array.from(
+      formRef.current.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
+        'input:not([type="hidden"]), select'
+      )
+    );
+  }, []);
+
+  const navigateToInput = useCallback((direction: "prev" | "next") => {
+    const inputs = getFormInputs();
+    if (inputs.length === 0) return;
+
+    let newIndex = currentInputIndex;
+    if (direction === "prev") {
+      newIndex = Math.max(0, currentInputIndex - 1);
+    } else {
+      newIndex = Math.min(inputs.length - 1, currentInputIndex + 1);
+    }
+
+    const targetInput = inputs[newIndex];
+    if (targetInput) {
+      targetInput.focus();
+      setCurrentInputIndex(newIndex);
+      // Scroll the input into view
+      targetInput.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [currentInputIndex, getFormInputs]);
+
+  const handleInputFocus = useCallback((e: FocusEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.tagName === "INPUT" || target.tagName === "SELECT") {
+      setIsInputFocused(true);
+      const inputs = getFormInputs();
+      const index = inputs.indexOf(target as HTMLInputElement | HTMLSelectElement);
+      if (index !== -1) {
+        setCurrentInputIndex(index);
+      }
+    }
+  }, [getFormInputs]);
+
+  const handleInputBlur = useCallback((e: FocusEvent) => {
+    // Delay to check if focus moved to another input or the nav buttons
+    setTimeout(() => {
+      const activeElement = document.activeElement;
+      const isStillInForm = formRef.current?.contains(activeElement);
+      const isNavButton = activeElement?.closest("[data-keyboard-nav]");
+      if (!isStillInForm && !isNavButton) {
+        setIsInputFocused(false);
+      }
+    }, 100);
+  }, []);
+
+  useEffect(() => {
+    const form = formRef.current;
+    if (!form) return;
+
+    form.addEventListener("focusin", handleInputFocus);
+    form.addEventListener("focusout", handleInputBlur);
+
+    return () => {
+      form.removeEventListener("focusin", handleInputFocus);
+      form.removeEventListener("focusout", handleInputBlur);
+    };
+  }, [handleInputFocus, handleInputBlur]);
 
   const addItem = () => {
     setItems([
@@ -140,8 +210,8 @@ export default function ManualPurchaseForm({
   ];
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start sm:items-center justify-center z-50 p-4 pt-8 sm:pt-4 overflow-y-auto">
+      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[85vh] sm:max-h-[90vh] flex flex-col my-auto sm:my-0">
         {/* Header - Fixed */}
         <div className="flex-shrink-0 border-b border-gray-200 px-6 py-4 flex items-center justify-between">
           <h2 className="text-2xl font-bold">Add Purchase Manually</h2>
@@ -167,7 +237,7 @@ export default function ManualPurchaseForm({
 
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto">
-          <form onSubmit={handleSubmit} className="p-6 space-y-6" id="purchase-form">
+          <form ref={formRef} onSubmit={handleSubmit} className="p-6 pb-32 sm:pb-6 space-y-6" id="purchase-form">
           {/* Order Details */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -348,6 +418,55 @@ export default function ManualPurchaseForm({
           </div>
         </form>
         </div>
+
+        {/* Keyboard Navigation Toolbar - Mobile Only */}
+        {isInputFocused && (
+          <div
+            data-keyboard-nav
+            className="flex-shrink-0 sm:hidden border-t border-gray-200 bg-gray-100 px-4 py-2 flex items-center justify-between"
+          >
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => navigateToInput("prev")}
+                disabled={currentInputIndex === 0}
+                className="p-2 rounded-md bg-white border border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed active:bg-gray-200"
+                aria-label="Previous field"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigateToInput("next")}
+                disabled={currentInputIndex >= getFormInputs().length - 1}
+                className="p-2 rounded-md bg-white border border-gray-300 disabled:opacity-40 disabled:cursor-not-allowed active:bg-gray-200"
+                aria-label="Next field"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+            </div>
+            <span className="text-sm text-gray-500">
+              {currentInputIndex + 1} / {getFormInputs().length}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                const inputs = getFormInputs();
+                if (inputs[currentInputIndex]) {
+                  inputs[currentInputIndex].blur();
+                }
+                setIsInputFocused(false);
+              }}
+              className="px-3 py-1.5 text-sm font-medium text-blue-600 active:text-blue-800"
+            >
+              Done
+            </button>
+          </div>
+        )}
 
         {/* Footer - Fixed */}
         <div className="flex-shrink-0 border-t border-gray-200 px-6 py-4">
