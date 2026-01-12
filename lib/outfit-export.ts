@@ -28,7 +28,7 @@ export async function exportOutfitAsImage(
   await Promise.all(
     Array.from(images).map((img) => {
       if (img.complete) return Promise.resolve();
-      return new Promise<void>((resolve, reject) => {
+      return new Promise<void>((resolve) => {
         img.onload = () => resolve();
         img.onerror = () => resolve(); // Continue even if image fails to load
         // Timeout after 5 seconds
@@ -38,18 +38,42 @@ export async function exportOutfitAsImage(
   );
 
   try {
-    const canvas = await html2canvas(element, {
-      backgroundColor: "#ffffff",
-      scale: 2,
-      logging: false,
-      useCORS: false, // Disable CORS since we're using allowTaint
-      allowTaint: true, // Allow tainted canvas for external images
-      imageTimeout: 15000, // 15 second timeout for loading images
-    });
+    // Try with CORS first (for same-origin images)
+    let canvas;
+    try {
+      canvas = await html2canvas(element, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+        logging: false,
+        useCORS: true,
+        allowTaint: false,
+        imageTimeout: 10000,
+      });
+    } catch (corsError) {
+      // If CORS fails, try with allowTaint (for external images)
+      console.warn("CORS capture failed, trying with allowTaint:", corsError);
+      canvas = await html2canvas(element, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+        logging: false,
+        useCORS: false,
+        allowTaint: true,
+        imageTimeout: 10000,
+      });
+    }
 
-    return canvas.toDataURL(`image/${format}`, quality);
+    // Try to get data URL - this may fail if canvas is tainted
+    try {
+      return canvas.toDataURL(`image/${format}`, quality);
+    } catch (dataUrlError) {
+      // If toDataURL fails due to tainted canvas, try toBlob approach
+      throw new Error("Cannot export canvas with external images due to browser security restrictions. Please ensure all images are from the same origin or have CORS enabled.");
+    }
   } catch (error) {
     console.error("html2canvas error:", error);
+    if (error instanceof Error && error.message.includes("tainted")) {
+      throw new Error("Cannot export outfit: Some images are from external sources and cannot be included in the export due to browser security restrictions.");
+    }
     throw new Error(`Failed to export outfit: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }
