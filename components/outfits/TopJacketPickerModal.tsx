@@ -1,0 +1,344 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import Image from "next/image";
+
+interface ClothingItem {
+  id: number;
+  imageUrl: string;
+  type: string | null;
+  primaryColor: string | null;
+  layeringCategory: string | null;
+}
+
+interface TopJacketPickerModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  items: ClothingItem[];
+  currentTop: ClothingItem | null;
+  currentJacket: ClothingItem | null;
+  onConfirm: (top: ClothingItem | null, jacket: ClothingItem | null) => void;
+}
+
+export default function TopJacketPickerModal({
+  isOpen,
+  onClose,
+  items,
+  currentTop,
+  currentJacket,
+  onConfirm,
+}: TopJacketPickerModalProps) {
+  const [selectedTop, setSelectedTop] = useState<ClothingItem | null>(currentTop);
+  const [selectedJacket, setSelectedJacket] = useState<ClothingItem | null>(currentJacket);
+  const [activeTab, setActiveTab] = useState<"top" | "jacket">("top");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Filter items by category
+  const tops = useMemo(() => {
+    return items.filter((item) => {
+      const category = item.layeringCategory?.toLowerCase() || "";
+      const matchesCategory = category === "top" || category.includes("top");
+      
+      if (!matchesCategory) return false;
+
+      // Search filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        return (
+          item.type?.toLowerCase().includes(query) ||
+          item.primaryColor?.toLowerCase().includes(query)
+        );
+      }
+
+      return true;
+    });
+  }, [items, searchQuery]);
+
+  const jackets = useMemo(() => {
+    return items.filter((item) => {
+      const category = item.layeringCategory?.toLowerCase() || "";
+      const matchesCategory = category === "jacket" || category.includes("jacket");
+      
+      if (!matchesCategory) return false;
+
+      // Search filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        return (
+          item.type?.toLowerCase().includes(query) ||
+          item.primaryColor?.toLowerCase().includes(query)
+        );
+      }
+
+      return true;
+    });
+  }, [items, searchQuery]);
+
+  const currentItems = activeTab === "top" ? tops : jackets;
+
+  const handleConfirm = () => {
+    onConfirm(selectedTop, selectedJacket);
+    onClose();
+  };
+
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
+  const handleSelectItem = (item: ClothingItem) => {
+    if (activeTab === "top") {
+      setSelectedTop(item.id === selectedTop?.id ? null : item);
+    } else {
+      setSelectedJacket(item.id === selectedJacket?.id ? null : item);
+    }
+  };
+
+  const handleClear = (type: "top" | "jacket") => {
+    if (type === "top") {
+      setSelectedTop(null);
+    } else {
+      setSelectedJacket(null);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[100]"
+      onClick={handleBackdropClick}
+    >
+      <div className="bg-white w-full sm:max-w-2xl sm:rounded-lg max-h-[85vh] flex flex-col rounded-t-xl">
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b flex-shrink-0">
+          <h3 className="text-lg font-semibold">Select Top & Jacket</h3>
+          <button
+            onClick={onClose}
+            className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            <svg
+              className="w-6 h-6 text-gray-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+
+        {/* Selected Items Preview */}
+        <div className="p-4 border-b bg-gray-50 flex-shrink-0">
+          <div className="grid grid-cols-2 gap-3">
+            {/* Selected Top */}
+            <div className="bg-white rounded-lg border-2 p-2">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-gray-600">Shirt/Top</span>
+                {selectedTop && (
+                  <button
+                    onClick={() => handleClear("top")}
+                    className="text-red-500 text-xs hover:text-red-700"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              {selectedTop ? (
+                <div className="aspect-square relative rounded overflow-hidden border">
+                  <Image
+                    src={selectedTop.imageUrl}
+                    alt={selectedTop.type || "Top"}
+                    fill
+                    className="object-cover"
+                    sizes="150px"
+                  />
+                  <div className="absolute inset-x-0 bottom-0 bg-black/70 p-1">
+                    <p className="text-white text-[10px] truncate">
+                      {selectedTop.type || "Top"}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="aspect-square border-2 border-dashed border-gray-300 rounded flex items-center justify-center">
+                  <span className="text-xs text-gray-400">None selected</span>
+                </div>
+              )}
+            </div>
+
+            {/* Selected Jacket */}
+            <div className="bg-white rounded-lg border-2 p-2">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-gray-600">Jacket</span>
+                {selectedJacket && (
+                  <button
+                    onClick={() => handleClear("jacket")}
+                    className="text-red-500 text-xs hover:text-red-700"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              {selectedJacket ? (
+                <div className="aspect-square relative rounded overflow-hidden border">
+                  <Image
+                    src={selectedJacket.imageUrl}
+                    alt={selectedJacket.type || "Jacket"}
+                    fill
+                    className="object-cover"
+                    sizes="150px"
+                  />
+                  <div className="absolute inset-x-0 bottom-0 bg-black/70 p-1">
+                    <p className="text-white text-[10px] truncate">
+                      {selectedJacket.type || "Jacket"}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="aspect-square border-2 border-dashed border-gray-300 rounded flex items-center justify-center">
+                  <span className="text-xs text-gray-400">None selected</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b flex-shrink-0">
+          <button
+            onClick={() => {
+              setActiveTab("top");
+              setSearchQuery("");
+            }}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+              activeTab === "top"
+                ? "border-b-2 border-black text-black bg-gray-50"
+                : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+            }`}
+          >
+            Tops ({tops.length})
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab("jacket");
+              setSearchQuery("");
+            }}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+              activeTab === "jacket"
+                ? "border-b-2 border-black text-black bg-gray-50"
+                : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+            }`}
+          >
+            Jackets ({jackets.length})
+          </button>
+        </div>
+
+        {/* Search */}
+        <div className="p-3 border-b flex-shrink-0">
+          <input
+            type="text"
+            placeholder={`Search ${activeTab === "top" ? "tops" : "jackets"}...`}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
+          />
+        </div>
+
+        {/* Items Grid */}
+        <div className="flex-1 overflow-y-auto p-3">
+          {currentItems.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              <p className="text-lg mb-2">No items found</p>
+              <p className="text-sm">
+                {searchQuery
+                  ? "Try a different search"
+                  : `Add some ${activeTab === "top" ? "tops" : "jackets"} to your wardrobe`}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+              {currentItems.map((item) => {
+                const isSelected =
+                  (activeTab === "top" && item.id === selectedTop?.id) ||
+                  (activeTab === "jacket" && item.id === selectedJacket?.id);
+
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => handleSelectItem(item)}
+                    className={`aspect-square relative rounded-lg overflow-hidden border-2 transition-all group ${
+                      isSelected
+                        ? "border-black scale-95 ring-2 ring-black ring-offset-2"
+                        : "border-transparent hover:border-black"
+                    }`}
+                  >
+                    <Image
+                      src={item.imageUrl}
+                      alt={item.type || "Clothing item"}
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform"
+                      sizes="(max-width: 640px) 33vw, 25vw"
+                    />
+                    {isSelected && (
+                      <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                        <div className="w-6 h-6 bg-black rounded-full flex items-center justify-center">
+                          <svg
+                            className="w-4 h-4 text-white"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={3}
+                              d="M5 13l4 4L19 7"
+                            />
+                          </svg>
+                        </div>
+                      </div>
+                    )}
+                    {/* Item info overlay */}
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <p className="text-white text-xs truncate">
+                        {item.type || "Item"}
+                      </p>
+                      {item.primaryColor && (
+                        <p className="text-white/80 text-[10px] truncate">
+                          {item.primaryColor}
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t bg-gray-50 flex-shrink-0 flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleConfirm}
+            className="flex-1 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
+          >
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+

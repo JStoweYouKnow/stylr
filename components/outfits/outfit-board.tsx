@@ -8,6 +8,7 @@ import DraggableItem from "./draggable-item";
 import OutfitVisualizer from "@/components/OutfitVisualizer";
 import Mannequin, { OutfitState, ClothingItem } from "./mannequin/Mannequin";
 import ItemPickerModal from "./ItemPickerModal";
+import TopJacketPickerModal from "./TopJacketPickerModal";
 
 // Zone configuration for item picker modal
 const ZONE_CONFIG: Record<keyof OutfitState, string[]> = {
@@ -42,6 +43,7 @@ function OutfitBoardContent({ onSaveSuccess }: OutfitBoardProps) {
   // Item picker modal state
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerZone, setPickerZone] = useState<keyof OutfitState>("top");
+  const [topJacketPickerOpen, setTopJacketPickerOpen] = useState(false);
 
   // Category filter for wardrobe sidebar
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
@@ -114,8 +116,27 @@ function OutfitBoardContent({ onSaveSuccess }: OutfitBoardProps) {
   }
 
   function handleZoneClick(zone: keyof OutfitState) {
-    setPickerZone(zone);
-    setPickerOpen(true);
+    // Special handling for top zone - show dual picker
+    if (zone === "top") {
+      setTopJacketPickerOpen(true);
+    } else {
+      setPickerZone(zone);
+      setPickerOpen(true);
+    }
+  }
+
+  function handleTopJacketConfirm(top: ClothingItem | null, jacket: ClothingItem | null) {
+    saveToHistory();
+    setOutfit((prev) => {
+      const newOutfit = { ...prev };
+      newOutfit.top = top;
+      newOutfit.jacket = jacket;
+      // Clear full-body if adding top/jacket
+      if (top || jacket) {
+        newOutfit.fullBody = null;
+      }
+      return newOutfit;
+    });
   }
 
   function handlePickerSelect(item: ClothingItem) {
@@ -430,6 +451,16 @@ function OutfitBoardContent({ onSaveSuccess }: OutfitBoardProps) {
         acceptCategories={ZONE_CONFIG[pickerZone]}
         items={wardrobeItems}
         onSelect={handlePickerSelect}
+      />
+
+      {/* Top & Jacket Picker Modal */}
+      <TopJacketPickerModal
+        isOpen={topJacketPickerOpen}
+        onClose={() => setTopJacketPickerOpen(false)}
+        items={wardrobeItems}
+        currentTop={outfit.top}
+        currentJacket={outfit.jacket}
+        onConfirm={handleTopJacketConfirm}
       />
     </div>
   );
