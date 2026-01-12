@@ -7,7 +7,7 @@ CLOTHING TYPES (choose the most specific):
 Tops: t-shirt, shirt, blouse, tank top, crop top, sweater, hoodie, sweatshirt, cardigan, vest
 Bottoms: jeans, pants, trousers, shorts, skirt, leggings, joggers, chinos
 Outerwear: jacket, coat, blazer, parka, windbreaker, bomber, denim jacket, leather jacket
-Dresses: dress, maxi dress, midi dress, mini dress, sundress, cocktail dress
+Full-body: dress, maxi dress, midi dress, mini dress, sundress, cocktail dress, jumpsuit, romper, overalls
 Footwear: sneakers, boots, sandals, heels, flats, loafers, athletic shoes
 Accessories: hat, baseball cap, beanie, bucket hat, fedora, snapback, trucker hat, beret, sun hat, winter hat, scarf, belt, bag, sunglasses, jewelry, watch
 Other: swimwear, activewear, underwear, socks
@@ -33,6 +33,7 @@ LAYERING CATEGORIES (choose one):
 - jacket: jackets, coats, blazers, parkas, windbreakers, bombers, outerwear
 - shoes: sneakers, boots, sandals, heels, flats, loafers, athletic shoes, all footwear
 - accessories: hats, bags, belts, scarves, sunglasses, jewelry, watches
+- full-body: dresses, jumpsuits, rompers, overalls (items that cover both torso and legs)
 
 BRAND DETECTION:
 - Look for brand names, logos, tags, labels visible in the image
@@ -53,7 +54,7 @@ Return ONLY a valid JSON object (no markdown, no code blocks):
   "fit": "fit style or null if unclear",
   "vibe": "primary style vibe",
   "notes": "brief description including material if visible (cotton, denim, leather, etc.)",
-  "layeringCategory": "top, bottom, jacket, shoes, or accessories",
+  "layeringCategory": "top, bottom, jacket, shoes, accessories, or full-body",
   "brand": "brand name if visible, or null",
   "productName": "product name or model if visible, or null",
   "features": ["array of key visual features for product matching, e.g., 'distinctive logo', 'unique pattern', 'color combination']"

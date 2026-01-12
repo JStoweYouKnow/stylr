@@ -172,6 +172,9 @@ export function getGarmentCategory(
     if (layer === 'bottom') {
       return 'lower_body';
     }
+    if (layer === 'full-body') {
+      return 'dresses';
+    }
     // Accessories and shoes cannot be tried on
     if (layer === 'shoes' || layer === 'accessories') {
       return null;

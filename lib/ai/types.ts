@@ -6,7 +6,7 @@ export interface ClothingAnalysis {
   fit: string | null;
   vibe: string;
   notes: string;
-  layeringCategory?: string; // top, bottom, jacket, shoes, accessories
+  layeringCategory?: string; // top, bottom, jacket, shoes, accessories, full-body
   brand?: string | null;
   productName?: string | null;
   features?: string[]; // Key visual features for product matching
