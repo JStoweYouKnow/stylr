@@ -138,7 +138,9 @@ export async function POST(request: NextRequest) {
       const imageBuffer = await fetchImageAsBuffer(item.imageUrl);
       if (imageBuffer) {
         // Resize and process image
+        // Use rotate() without arguments to auto-rotate based on EXIF orientation data
         const processedImage = await sharp(imageBuffer)
+          .rotate() // Auto-rotate based on EXIF orientation
           .resize(itemSize, itemSize, {
             fit: 'cover',
             position: 'center',
