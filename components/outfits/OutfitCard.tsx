@@ -40,6 +40,7 @@ export default function OutfitCard({ outfit, type = "saved", onExport, onDelete 
           body: JSON.stringify({
             outfitId: outfit.id,
             type: type,
+            useAvatar: true,
           }),
         });
 

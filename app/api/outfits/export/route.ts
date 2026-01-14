@@ -24,6 +24,25 @@ async function fetchImageAsBuffer(url: string): Promise<Buffer | null> {
   }
 }
 
+type LayerSlot = "fullBody" | "top" | "bottom" | "jacket" | "shoes";
+
+function getLayerSlot(item: { type: string | null; layeringCategory?: string | null }): LayerSlot | null {
+  const layer = item.layeringCategory?.toLowerCase() || "";
+  if (layer === "full-body") return "fullBody";
+  if (layer === "top") return "top";
+  if (layer === "bottom") return "bottom";
+  if (layer === "jacket") return "jacket";
+  if (layer === "shoes") return "shoes";
+
+  const type = item.type?.toLowerCase() || "";
+  if (/(dress|jumpsuit|romper|overall)/.test(type)) return "fullBody";
+  if (/(pants|jeans|trousers|skirt|shorts|leggings|joggers)/.test(type)) return "bottom";
+  if (/(jacket|coat|blazer|parka|windbreaker|bomber)/.test(type)) return "jacket";
+  if (/(shoe|sneaker|boot|heel|loafer|sandal)/.test(type)) return "shoes";
+  if (type) return "top";
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const userId = await getCurrentUserId();
@@ -31,7 +50,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { outfitId, type = "saved" } = await request.json();
+    const { outfitId, type = "saved", useAvatar = true } = await request.json();
 
     if (!outfitId) {
       return NextResponse.json(
@@ -65,6 +84,7 @@ export async function POST(request: NextRequest) {
           productImageUrl: true,
           type: true,
           primaryColor: true,
+          layeringCategory: true,
         },
       });
     } else {
@@ -88,6 +108,7 @@ export async function POST(request: NextRequest) {
           productImageUrl: true,
           type: true,
           primaryColor: true,
+          layeringCategory: true,
         },
       });
     }
@@ -105,7 +126,104 @@ export async function POST(request: NextRequest) {
       imageUrl: item.productImageUrl || item.imageUrl,
       type: item.type,
       primaryColor: item.primaryColor,
+      layeringCategory: item.layeringCategory,
     }));
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { avatarImageUrl: true },
+    });
+
+    if (useAvatar && user?.avatarImageUrl) {
+      const avatarBuffer = await fetchImageAsBuffer(user.avatarImageUrl);
+      if (!avatarBuffer) {
+        return NextResponse.json(
+          { error: "Failed to load avatar image" },
+          { status: 500 }
+        );
+      }
+
+      const avatarWidth = 800;
+      const avatarHeight = 1200;
+
+      const avatarBase = await sharp(avatarBuffer)
+        .rotate()
+        .resize(avatarWidth, avatarHeight, {
+          fit: "cover",
+          position: "center",
+        })
+        .png()
+        .toBuffer();
+
+      const avatarCanvas = sharp(avatarBase);
+
+      const placements: Record<LayerSlot, { x: number; y: number; w: number; h: number }> = {
+        fullBody: { x: 0.2, y: 0.12, w: 0.6, h: 0.72 },
+        top: { x: 0.22, y: 0.16, w: 0.56, h: 0.38 },
+        jacket: { x: 0.18, y: 0.14, w: 0.64, h: 0.42 },
+        bottom: { x: 0.24, y: 0.5, w: 0.52, h: 0.38 },
+        shoes: { x: 0.28, y: 0.82, w: 0.44, h: 0.14 },
+      };
+
+      const slotItems = itemsWithImages
+        .map((item) => ({
+          item,
+          slot: getLayerSlot(item),
+        }))
+        .filter((entry): entry is { item: typeof itemsWithImages[number]; slot: LayerSlot } => Boolean(entry.slot));
+
+      const hasFullBody = slotItems.some((entry) => entry.slot === "fullBody");
+
+      const orderedSlots: LayerSlot[] = hasFullBody
+        ? ["fullBody", "shoes", "jacket"]
+        : ["top", "bottom", "jacket", "shoes"];
+
+      const composites: Array<{ input: Buffer; left: number; top: number }> = [];
+
+      for (const slot of orderedSlots) {
+        const slotEntry = slotItems.find((entry) => entry.slot === slot);
+        if (!slotEntry) continue;
+
+        const imageBuffer = await fetchImageAsBuffer(slotEntry.item.imageUrl);
+        if (!imageBuffer) continue;
+
+        const placement = placements[slot];
+        const resized = await sharp(imageBuffer)
+          .rotate()
+          .resize(
+            Math.round(placement.w * avatarWidth),
+            Math.round(placement.h * avatarHeight),
+            {
+              fit: "contain",
+              background: { r: 0, g: 0, b: 0, alpha: 0 },
+            }
+          )
+          .png()
+          .toBuffer();
+
+        composites.push({
+          input: resized,
+          left: Math.round(placement.x * avatarWidth),
+          top: Math.round(placement.y * avatarHeight),
+        });
+      }
+
+      if (composites.length === 0) {
+        return NextResponse.json(
+          { error: "No compatible items to overlay on avatar" },
+          { status: 400 }
+        );
+      }
+
+      const finalImage = await avatarCanvas.composite(composites).png().toBuffer();
+
+      return new NextResponse(finalImage as unknown as BodyInit, {
+        headers: {
+          "Content-Type": "image/png",
+          "Content-Disposition": `attachment; filename="outfit-${outfitId}-${Date.now()}.png"`,
+        },
+      });
+    }
 
     // Configuration
     const itemSize = 300; // Size of each item image
