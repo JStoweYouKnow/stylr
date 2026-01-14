@@ -8,6 +8,8 @@ import { GridSkeleton } from "@/components/LoadingSkeleton";
 interface ClothingItem {
   id: number;
   imageUrl: string;
+  productImageUrl?: string | null;
+  originalImageUrl?: string | null;
   type: string | null;
   primaryColor: string | null;
   secondaryColor: string | null;
@@ -47,6 +49,12 @@ export default function ClothingGrid() {
 
   function handleDelete(id: number) {
     setItems(items.filter((item) => item.id !== id));
+  }
+
+  function handleUpdate(updatedItem: ClothingItem) {
+    setItems((prev) =>
+      prev.map((item) => (item.id === updatedItem.id ? updatedItem : item))
+    );
   }
 
   // Get unique values for filters
@@ -177,7 +185,12 @@ export default function ClothingGrid() {
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {filteredItems.map((item) => (
-            <ItemCard key={item.id} item={item} onDelete={handleDelete} />
+            <ItemCard
+              key={item.id}
+              item={item}
+              onDelete={handleDelete}
+              onUpdate={handleUpdate}
+            />
           ))}
         </div>
       )}

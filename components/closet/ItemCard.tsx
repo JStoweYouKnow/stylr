@@ -6,6 +6,8 @@ import Image from "next/image";
 interface ClothingItem {
   id: number;
   imageUrl: string;
+  productImageUrl?: string | null;
+  originalImageUrl?: string | null;
   type: string | null;
   primaryColor: string | null;
   secondaryColor: string | null;
@@ -18,11 +20,18 @@ interface ClothingItem {
 interface ItemCardProps {
   item: ClothingItem;
   onDelete?: (id: number) => void;
+  onUpdate?: (item: ClothingItem) => void;
 }
 
-export default function ItemCard({ item, onDelete }: ItemCardProps) {
+export default function ItemCard({ item, onDelete, onUpdate }: ItemCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [isSwappingImage, setIsSwappingImage] = useState(false);
+
+  const canUseProductImage =
+    Boolean(item.productImageUrl) && item.imageUrl !== item.productImageUrl;
+  const canRestoreOriginal =
+    Boolean(item.originalImageUrl) && item.imageUrl !== item.originalImageUrl;
 
   async function handleDelete() {
     if (!confirm("Are you sure you want to delete this item?")) return;
@@ -40,6 +49,33 @@ export default function ItemCard({ item, onDelete }: ItemCardProps) {
       console.error("Delete error:", error);
     } finally {
       setIsDeleting(false);
+    }
+  }
+
+  async function handleSwapImage(useProductImage: boolean) {
+    if (!onUpdate) return;
+    setIsSwappingImage(true);
+    try {
+      const res = await fetch(`/api/clothing/${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ useProductImage }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        throw new Error(error.error || "Failed to update item image");
+      }
+
+      const data = await res.json();
+      if (data?.item) {
+        onUpdate(data.item);
+      }
+    } catch (error) {
+      console.error("Image swap error:", error);
+      alert(error instanceof Error ? error.message : "Failed to update item image");
+    } finally {
+      setIsSwappingImage(false);
     }
   }
 
@@ -77,6 +113,29 @@ export default function ItemCard({ item, onDelete }: ItemCardProps) {
           </svg>
         </button>
       </div>
+
+      {(canUseProductImage || canRestoreOriginal) && (
+        <div className="p-2 border-t bg-gray-50 flex gap-2">
+          {canUseProductImage && (
+            <button
+              onClick={() => handleSwapImage(true)}
+              disabled={isSwappingImage}
+              className="flex-1 px-2 py-1.5 text-xs rounded-md bg-black text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Use product image
+            </button>
+          )}
+          {canRestoreOriginal && (
+            <button
+              onClick={() => handleSwapImage(false)}
+              disabled={isSwappingImage}
+              className="flex-1 px-2 py-1.5 text-xs rounded-md border hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Use original photo
+            </button>
+          )}
+        </div>
+      )}
       <div className="p-3">
         <button
           onClick={() => setShowDetails(!showDetails)}

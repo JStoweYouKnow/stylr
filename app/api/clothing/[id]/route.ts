@@ -79,3 +79,78 @@ export async function DELETE(
   }
 }
 
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const userId = await getCurrentUserId();
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const itemId = parseInt(id);
+    if (isNaN(itemId)) {
+      return NextResponse.json({ error: "Invalid item ID" }, { status: 400 });
+    }
+
+    const body = await request.json();
+    const useProductImage = Boolean(body?.useProductImage);
+
+    const item = await prisma.clothingItem.findUnique({
+      where: { id: itemId, userId },
+      select: {
+        id: true,
+        imageUrl: true,
+        productImageUrl: true,
+        originalImageUrl: true,
+      },
+    });
+
+    if (!item) {
+      return NextResponse.json({ error: "Item not found" }, { status: 404 });
+    }
+
+    if (useProductImage) {
+      if (!item.productImageUrl) {
+        return NextResponse.json(
+          { error: "No product image available for this item" },
+          { status: 400 }
+        );
+      }
+      const updated = await prisma.clothingItem.update({
+        where: { id: itemId },
+        data: {
+          originalImageUrl: item.originalImageUrl || item.imageUrl,
+          imageUrl: item.productImageUrl,
+        },
+      });
+      return NextResponse.json({ item: updated });
+    }
+
+    if (!item.originalImageUrl) {
+      return NextResponse.json(
+        { error: "No original image available to restore" },
+        { status: 400 }
+      );
+    }
+
+    const updated = await prisma.clothingItem.update({
+      where: { id: itemId },
+      data: {
+        imageUrl: item.originalImageUrl,
+      },
+    });
+
+    return NextResponse.json({ item: updated });
+  } catch (error) {
+    console.error("Error updating clothing item:", error);
+    return NextResponse.json(
+      { error: "Failed to update clothing item" },
+      { status: 500 }
+    );
+  }
+}
+
